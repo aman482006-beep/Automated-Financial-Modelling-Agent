@@ -2,8 +2,33 @@
 "use strict";
 const E=window.ModelEngine,$=s=>document.querySelector(s),$$=s=>Array.from(document.querySelectorAll(s));
 const KEY="modelforge.project.v2",symbols={INR:"₹",USD:"$",EUR:"€",GBP:"£",SGD:"S$"};
-let project=loadSaved()||E.defaultProject(),forecast=[],ratios=[],valuation,noticeTimer;
-function loadSaved(){try{const p=JSON.parse(localStorage.getItem(KEY)||"null");return p&&p.profile&&p.history?p:null}catch(e){return null}}
+let project=normaliseProject(loadSaved()||E.defaultProject()),forecast=[],ratios=[],valuation,noticeTimer;
+
+function normaliseProject(p){
+ p=p&&typeof p==="object"?p:{};
+ const today=String(new Date().getFullYear());
+ p.profile={name:"",analyst:"Financial Analyst",industry:"",valuationDate:new Date().toISOString().slice(0,10),currency:"INR",unit:"millions",frequency:"Annual",sharesOutstanding:100,...(p.profile||{})};
+ const old=p.history&&typeof p.history==="object"?p.history:{};
+ let periods=Array.isArray(old.periods)?old.periods.map(x=>String(x).trim()).filter(Boolean):[];
+ periods=Array.from(new Set(periods));
+ if(!periods.length)periods=[today];
+ const history=E.blankHistory(periods);
+ Object.keys(E.ITEMS).forEach(group=>E.ITEMS[group].forEach(([key])=>{
+  const values=Array.isArray(old[group]?.[key])?old[group][key]:[];
+  history[group][key]=periods.map((_,i)=>values[i]??null);
+ }));
+ p.history=history;
+ p.assumptions={...E.clone(E.DEFAULT_ASSUMPTIONS),...(p.assumptions||{})};
+ p.dcf={...E.clone(E.DEFAULT_DCF),...(p.dcf||{})};
+ p.peers=Array.isArray(p.peers)?p.peers:E.clone(E.DEFAULT_PEERS);
+ p.mapping=p.mapping&&typeof p.mapping==="object"?p.mapping:{};
+ p.rawRecords=Array.isArray(p.rawRecords)?p.rawRecords:[];
+ p.forecastYears=Number(p.forecastYears)||5;
+ p.theme=p.theme||"light";
+ return p;
+}
+function loadSaved(){try{const p=JSON.parse(localStorage.getItem(KEY)||"null");return p&&p.profile&&p.history?normaliseProject(p):null}catch(e){return null}}
+
 function persist(){try{localStorage.setItem(KEY,JSON.stringify(project));$("#saveStatus").textContent="● Saved locally"}catch(e){$("#saveStatus").textContent="● Not saved (storage full)"}}
 function toast(msg){const el=$("#toast");el.textContent=msg;el.classList.add("show");clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>el.classList.remove("show"),2500)}
 function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
@@ -114,16 +139,6 @@ function renderEverything(){renderOverview();renderValidation();renderHistory();
 function parseCsv(txt){
  const lines=txt.replace(/^\uFEFF/,"").split(/\r?\n/).filter(x=>x.trim()),parse=line=>{let arr=[],v="",q=false;for(let i=0;i<line.length;i++){let ch=line[i];if(ch==='"'&&line[i+1]==='"'&&q){v+='"';i++}else if(ch==='"')q=!q;else if(ch===","&&!q){arr.push(v);v=""}else v+=ch}arr.push(v);return arr};if(!lines.length)return [];const heads=parse(lines[0]).map(x=>x.trim());return lines.slice(1).map(l=>{const values=parse(l),obj={};heads.forEach((k,i)=>obj[k]=values[i]??"");return obj});
 }
-function headerKey(keys,wanted){return keys.find(k=>wanted.includes(E.normaliseLabel(k)))}
-function periodText(v){if(v instanceof Date)return String(v.getFullYear());const s=String(v??"").trim(),m=s.match(/(?:19|20)\d{2}/);return m?m[0]:s}
-function recordsFromRows(rows,sheetName,fileName){
- if(!rows.length)return [];const keys=Object.keys(rows[0]),periodKey=headerKey(keys,["period","year","date","fiscalyear","quarter"]),itemKey=headerKey(keys,["item","lineitem","account","description","particulars"]),valueKey=headerKey(keys,["value","amount","balance","reportedvalue","financialvalue"]),statementKey=headerKey(keys,["statement","statementtype","category"]),out=[];
- if(periodKey&&itemKey&&valueKey){rows.forEach(r=>{const period=periodText(r[periodKey]);if(period)out.push({period,label:String(r[itemKey]||""),value:E.parseNumber(r[valueKey]),statement:r[statementKey]||sheetName||fileName||""})});return out}
- if(periodKey){rows.forEach(r=>{const p=periodText(r[periodKey]);if(!p)return;keys.forEach(k=>{if([periodKey,statementKey].includes(k)||["currency","unit","company"].includes(E.normaliseLabel(k)))return;const v=E.parseNumber(r[k]);if(v!==null)out.push({period:p,label:k,value:v,statement:r[statementKey]||sheetName||fileName||""})})});return out}
- const first=keys[0],periods=keys.slice(1).filter(k=>/^(?:19|20)\d{2}$|^Q[1-4][ -]?(?:19|20)\d{2}$/i.test(String(k).trim()));
- if(first&&periods.length)rows.forEach(r=>periods.forEach(p=>{const v=E.parseNumber(r[p]);if(v!==null)out.push({period:periodText(p),label:String(r[first]||""),value:v,statement:sheetName||fileName||""})}));
- return out;
-}
 function renderMapping(){
  const labels=Array.from(new Set((project.rawRecords||[]).map(r=>r.label)));
  if(!labels.length){$("#mappingTable").innerHTML='<tbody><tr><td>No source labels imported yet. Load sample statements or upload CSV / Excel files.</td></tr></tbody>';return}
@@ -132,11 +147,26 @@ function renderMapping(){
  $$("[data-map]").forEach(el=>el.addEventListener("change",()=>{project.mapping[el.dataset.map]=el.value;persist()}));
 }
 async function importStatements(files){
- if(!files.length)return;let records=[];
- for(const file of files){const ext=file.name.split(".").pop().toLowerCase();if(ext==="csv")records=records.concat(recordsFromRows(parseCsv(await file.text()),"",file.name));else if(["xlsx","xls"].includes(ext)){if(!window.XLSX)throw new Error("Excel reader unavailable. Try CSV or reload with internet access.");const wb=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:true});wb.SheetNames.forEach(name=>records=records.concat(recordsFromRows(XLSX.utils.sheet_to_json(wb.Sheets[name],{defval:null,raw:true}),name,file.name)))}}
- if(!records.length)throw new Error("No valid financial rows found. Use Period / Item / Value or Period / Revenue / EBITDA-style columns.");
- project.rawRecords=(project.rawRecords||[]).concat(records);Array.from(new Set(project.rawRecords.map(r=>r.label))).forEach(label=>{if(project.mapping[label]===undefined)project.mapping[label]=E.mapLabel(label)||"ignore"});
- project.history=E.historyFromRecords(project.rawRecords,project.mapping);renderMapping();renderManualEntry();rebuild();persist();$("#importStatus").textContent="Imported "+records.length+" line-item values from "+files.length+" file(s). Review mappings and checks.";toast("Import complete. Review data mapping and validation.");
+ if(!files.length)return;
+ let records=[];
+ for(const file of files){
+  const ext=file.name.split(".").pop().toLowerCase();
+  if(ext==="csv")records=records.concat(E.recordsFromRows(parseCsv(await file.text()),"",file.name));
+  else if(["xlsx","xls"].includes(ext)){
+   if(!window.XLSX?.utils?.sheet_to_json)throw new Error("Excel reader unavailable. Reload with internet access or upload a CSV file.");
+   const workbook=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:true});
+   workbook.SheetNames.forEach(name=>records=records.concat(E.recordsFromRows(XLSX.utils.sheet_to_json(workbook.Sheets[name],{defval:null,raw:true}),name,file.name)));
+  }else throw new Error("Unsupported file type: "+file.name+". Upload a .csv, .xlsx or .xls file.");
+ }
+ if(!records.length)throw new Error("No numeric financial values were found. Use the ModelForge Excel template or a CSV with Period / Item / Value columns.");
+ project.rawRecords=(project.rawRecords||[]).concat(records);
+ Array.from(new Set(project.rawRecords.map(r=>r.label))).forEach(label=>{if(project.mapping[label]===undefined)project.mapping[label]=E.mapLabel(label)||"ignore"});
+ project.history=E.historyFromRecords(project.rawRecords,project.mapping);
+ project=normaliseProject(project);
+ renderMapping();renderManualEntry();rebuild();persist();
+ const unmapped=Array.from(new Set(records.map(r=>r.label))).filter(label=>!project.mapping[label]||project.mapping[label]==="ignore");
+ $("#importStatus").textContent="Imported "+records.length+" values from "+files.length+" file(s). "+(unmapped.length?unmapped.length+" source label(s) need mapping.":"All recognised labels mapped automatically.")+" Review checks before forecasting.";
+ toast("Import complete. Review the imported figures and validation checks.");
 }
 function applyMapping(){project.history=E.historyFromRecords(project.rawRecords||[],project.mapping||{});renderManualEntry();rebuild();persist();toast("Source mappings applied.")}
 function loadSample(){const p=E.defaultProject();project=p;syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();persist();$("#importStatus").textContent="Synthetic sample company loaded.";toast("Sample company restored.")}
@@ -162,54 +192,67 @@ async function exportCsvPack(){
  const blob=await z.generateAsync({type:"blob"});downloadBlob((p.name||"Company").replace(/[^a-z0-9]+/gi,"_")+"_Financial_Report_CSV_Pack.zip",blob);toast("CSV report pack downloaded.");
 }
 function saveProjectFile(){const blob=new Blob([JSON.stringify(project,null,2)],{type:"application/json"});downloadBlob((project.profile.name||"ModelForge").replace(/[^a-z0-9]+/gi,"_")+"_project.json",blob);toast("Project backup downloaded.")}
-function loadProjectFile(file){const reader=new FileReader();reader.onload=()=>{try{const p=JSON.parse(reader.result);if(!p.profile||!p.history||!p.assumptions||!p.dcf)throw new Error("Not a ModelForge project file.");project=p;syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();persist();toast("Project loaded.")}catch(e){toast("Could not load project: "+e.message)}};reader.readAsText(file)}
+function loadProjectFile(file){const reader=new FileReader();reader.onload=()=>{try{const p=JSON.parse(reader.result);if(!p.profile||!p.history)throw new Error("Not a ModelForge project file.");project=normaliseProject(p);syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();persist();toast("Project loaded.")}catch(e){toast("Could not load project: "+e.message)}};reader.readAsText(file)}
 
+
+function comparePeriods(a,b){
+ const ya=Number(String(a).match(/(?:19|20)\\d{2}/)?.[0]),yb=Number(String(b).match(/(?:19|20)\\d{2}/)?.[0]);
+ if(Number.isFinite(ya)&&Number.isFinite(yb)&&ya!==yb)return ya-yb;
+ return String(a).localeCompare(String(b),undefined,{numeric:true});
+}
 function renderManualEntry(){
+ project=normaliseProject(project);
  const periodSelect=$("#manualPeriodSelect"),statementSelect=$("#manualStatementSelect");
  if(!periodSelect||!statementSelect)return;
- const periods=project.history.periods||[],previous=periodSelect.value;
+ const periods=project.history.periods,previous=periodSelect.value;
  periodSelect.innerHTML=periods.map(p=>'<option value="'+esc(p)+'">'+esc(p)+'</option>').join("");
- periodSelect.value=periods.includes(previous)?previous:(periods.at(-1)||"");
+ periodSelect.value=periods.includes(previous)?previous:periods.at(-1);
  const group=statementSelect.value||"IS",index=periods.indexOf(periodSelect.value);
  $("#manualEntryGrid").innerHTML=(E.ITEMS[group]||[]).map(([key,label])=>{
   const value=index>=0?project.history[group][key][index]:null;
   return '<label class="manual-field">'+esc(label)+'<input type="number" step="any" data-manual-key="'+esc(key)+'" value="'+(value===null||value===undefined?"":esc(value))+'" placeholder="Enter amount"></label>';
  }).join("");
- $("#manualEntryStatus").textContent=index>=0?"Editing "+periodSelect.value+" · "+(project.profile.currency||"INR")+" "+(project.profile.unit||"millions"):"Add a period to start entering data.";
+ $("#manualEntryStatus").textContent=index>=0?"Editing "+periodSelect.value+" · "+(project.profile.currency||"INR")+" "+(project.profile.unit||"millions")+". Changes are saved when you click Save figures.":"Add a period to start entering data.";
 }
 function addManualPeriod(){
  const input=$("#newManualPeriod"),value=input.value.trim();
  if(!value){toast("Enter a year or period first.");input.focus();return}
- const h=project.history;
- if(!h.periods.includes(value)){
-  h.periods.push(value);
-  Object.keys(E.ITEMS).forEach(g=>E.ITEMS[g].forEach(([key])=>h[g][key].push(null)));
+ const h=project.history,oldPeriods=h.periods.slice();
+ if(!oldPeriods.includes(value)){
+  const sorted=[...oldPeriods,value].sort(comparePeriods);
+  Object.keys(E.ITEMS).forEach(group=>E.ITEMS[group].forEach(([key])=>{
+   const oldValues=h[group][key]||[];
+   h[group][key]=sorted.map(period=>period===value?null:(oldValues[oldPeriods.indexOf(period)]??null));
+  }));
+  h.periods=sorted;
  }
  $("#manualPeriodSelect").value=value;input.value="";
  renderManualEntry();rebuild();persist();toast("Period "+value+" added.");
 }
 function saveManualEntry(){
  const group=$("#manualStatementSelect").value,period=$("#manualPeriodSelect").value,index=project.history.periods.indexOf(period);
- if(index<0){toast("Add a period before saving figures.");return}
+ if(index<0){toast("Choose or add a reporting period first.");return}
  let entered=0;
- $("#manualEntryGrid [data-manual-key]").forEach(el=>{
+ $$("#manualEntryGrid [data-manual-key]").forEach(el=>{
   const value=E.parseNumber(el.value);
   project.history[group][el.dataset.manualKey][index]=value;
   if(value!==null)entered++;
  });
- rebuild();renderManualEntry();persist();
+ rebuild();persist();
  $("#manualEntryStatus").textContent=entered+" figures saved for "+period+".";
- toast("Financial figures saved.");
+ toast("Financial figures saved for "+period+".");
 }
 function startBlank(){
- const p=E.defaultProject();
- p.profile={name:"",analyst:"",industry:"",valuationDate:new Date().toISOString().slice(0,10),currency:"INR",unit:"millions",frequency:"Annual",sharesOutstanding:100};
- p.history=E.blankHistory(["2025"]);p.peers=[];p.rawRecords=[];p.mapping={};
- project=p;syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();rebuild();renderManualEntry();persist();showPage("data");
+ const p=E.defaultProject(),year=String(new Date().getFullYear());
+ p.profile={name:"",analyst:"Financial Analyst",industry:"",valuationDate:new Date().toISOString().slice(0,10),currency:"INR",unit:"millions",frequency:"Annual",sharesOutstanding:100};
+ p.history=E.blankHistory([year]);p.peers=[];p.rawRecords=[];p.mapping={};
+ project=normaliseProject(p);syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();rebuild();renderManualEntry();persist();showPage("data");
  toast("Blank company created. Add your company details and enter financials.");
 }
-
-function addPeriod(){const value=prompt("Enter a period label, for example 2026 or Q1 2026:");if(!value||!value.trim())return;const h=project.history;if(h.periods.includes(value.trim())){toast("That period already exists.");return}h.periods.push(value.trim());Object.keys(E.ITEMS).forEach(g=>E.ITEMS[g].forEach(([k])=>h[g][k].push(null)));renderHistory();rebuild();persist()}
+function addPeriod(){
+ showPage("data");$("#newManualPeriod").focus();
+ toast("Add the reporting period in the manual-entry section.");
+}
 function resetAssumptions(){project.assumptions=clone(E.DEFAULT_ASSUMPTIONS);renderAssumptions();rebuild();persist();toast("Forecast assumptions reset.")}
 function bindEvents(){
  syncProfile();
@@ -218,6 +261,14 @@ function bindEvents(){
  $("#themeSelect").addEventListener("change",e=>{project.theme=e.target.value;document.body.dataset.theme=project.theme;persist();drawCharts()});
  $("#historyStatement").addEventListener("change",renderHistoryEditor);
  $("#manualPeriodSelect").addEventListener("change",renderManualEntry);
+ $("#manualEntryGrid").addEventListener("change",e=>{
+  const el=e.target.closest("[data-manual-key]");if(!el)return;
+  const period=$("#manualPeriodSelect").value,index=project.history.periods.indexOf(period),group=$("#manualStatementSelect").value;
+  if(index<0)return;
+  project.history[group][el.dataset.manualKey][index]=E.parseNumber(el.value);
+  persist();
+ });
+
  $("#manualStatementSelect").addEventListener("change",renderManualEntry);
  $("#addManualPeriod").addEventListener("click",addManualPeriod);
  $("#saveManualEntry").addEventListener("click",saveManualEntry);
@@ -230,11 +281,12 @@ function bindEvents(){
  $("#runChecks").addEventListener("click",()=>{renderValidation();toast("Validation checks refreshed.")});
  $("#applyMapping").addEventListener("click",applyMapping);
  $("#loadSample").addEventListener("click",loadSample);
- $("#fileInput").addEventListener("change",async e=>{try{await importStatements(Array.from(e.target.files||[]))}catch(err){toast(err.message)}});
+ $("#fileInput").addEventListener("change",async e=>{const files=Array.from(e.target.files||[]);try{await importStatements(files)}catch(err){toast(err.message)}finally{e.target.value="";}});
  const dropZone=$("#fileInput").closest(".upload-drop");
  ["dragenter","dragover"].forEach(type=>dropZone.addEventListener(type,e=>{e.preventDefault();e.stopPropagation();dropZone.classList.add("dragging")}));
  ["dragleave","dragend"].forEach(type=>dropZone.addEventListener(type,e=>{e.preventDefault();dropZone.classList.remove("dragging")}));
  dropZone.addEventListener("drop",async e=>{e.preventDefault();e.stopPropagation();dropZone.classList.remove("dragging");try{await importStatements(Array.from(e.dataTransfer?.files||[]))}catch(err){toast(err.message)}});
+ $("#downloadExcelTemplate").addEventListener("click",()=>{try{if(!window.ModelWorkbook?.downloadDataTemplate)throw new Error("Excel template generator is not loaded.");window.ModelWorkbook.downloadDataTemplate();toast("Blank Excel template downloaded.")}catch(err){toast("Template download failed: "+err.message)}});
  $("#downloadSampleCsv").addEventListener("click",()=>{const headers=["period","Revenue","Cost of goods sold","Gross profit","Employee expenses","Other operating expenses","EBITDA","Depreciation","EBIT","Interest expense","Profit before tax","Tax","Net income","Cash","Accounts receivable","Inventory","Other current assets","PP&E","Total assets","Accounts payable","Short-term debt","Long-term debt","Other liabilities","Shareholders equity","Total liabilities and equity","Cash flow from operations","Capital expenditure","Cash flow from investing","Cash flow from financing","Free cash flow"];const keys=["revenue","cogs","grossProfit","employeeExpenses","otherOpex","ebitda","da","ebit","interestExpense","pbt","tax","netIncome","cash","ar","inventory","otherCurrentAssets","ppe","totalAssets","ap","shortDebt","longDebt","otherLiabilities","equity","totalLiabEquity","cfo","capex","cfi","cff","fcf"];const rows=[headers];project.history.periods.forEach((period,i)=>rows.push([period,...keys.map(k=>{for(const g of ["IS","BS","CF"])if(project.history[g][k])return project.history[g][k][i]??"";return ""})]));downloadBlob("ModelForge_Sample_Historical_Statements.csv",new Blob([csvText(rows)],{type:"text/csv"}))});
  $("#saveProject").addEventListener("click",saveProjectFile);
  $("#loadProjectFile").addEventListener("change",e=>{if(e.target.files[0])loadProjectFile(e.target.files[0])});
