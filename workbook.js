@@ -3,7 +3,7 @@
 function col(n){let s="";while(n>0){let r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26)}return s}
 function ref(c,r){return col(c)+r}
 function q(sheet){return "'"+sheet.replace(/'/g,"''")+"'"}
-function fcell(ws,cell,formula,value){ws[cell]={t:"n",f:formula,v:Number.isFinite(value)?value:0};}
+function fcell(ws,cell,formula,value){const raw=String(formula??"");ws[cell]={t:"n",f:raw.startsWith("=")?raw.slice(1):raw,v:Number.isFinite(value)?value:0};}
 function setStyle(ws,cell,style){if(ws[cell])ws[cell].s=style}
 const styles={
  title:{font:{name:"Aptos Display",sz:16,bold:true,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"14263F"}},alignment:{vertical:"center"}},
@@ -56,6 +56,9 @@ function exportWorkbook(project,forecast,valuation,ratios){
  [3,4,5,6,7,8,9,10,11,27].forEach(r=>setStyle(inputs,"A"+r,styles.section));
  [12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,28,29,30,31,32,33,34,35,36,37].forEach(r=>setStyle(inputs,"B"+r,styles.input));
  [38,39,40,41].forEach(r=>setStyle(inputs,"B"+r,styles.formula));
+ [12,13,14,15,16,17,18,22,23,25,26,28,29,31,36].forEach(r=>setFormat(inputs,"B"+r,"0.0%"));
+ setFormat(inputs,"B30","0.00x");setFormat(inputs,"B37","0.0x");setFormat(inputs,"B38","0.0%");setFormat(inputs,"B39","0.0%");setFormat(inputs,"B40","0.0%");setFormat(inputs,"B41","0.0%");
+
  inputs["!autofilter"]={ref:"A11:B26"};
  // Forecast worksheet shells.
  function forecastSheet(name,rows){const arr=[ [name],["All projected values are formulas linked to Inputs and the adjacent statement schedules."],["Currency / unit",p.currency+" / "+p.unit],["Line item"].concat(forecast.map(x=>x.year)) ];rows.forEach(label=>arr.push([label]));const ws=addSheet(wb,name,arr,[34].concat(forecast.map(()=>14)));title(ws,n+1,name);headerRow(ws,4,n+1);return ws;}
