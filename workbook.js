@@ -231,10 +231,10 @@ function exportWorkbook(project,forecast,valuation,ratios){
    const prevNwcRef=first?String(startNwc):q("Scenario Calc")+"!"+prev+rows["Net working capital"];
    formulaCell(scen,C+rows["Change in NWC"],"="+C+rows["Net working capital"]+"-"+prevNwcRef,forecast[t].changeNWC);
    formulaCell(scen,C+rows.UFCF,"="+C+rows.NOPAT+"+"+C+rows["D&A add-back"]+"-"+C+rows.Capex+"-"+C+rows["Change in NWC"],forecast[t].ebit*(1-a.taxRate)-forecast[t].da-forecast[t].capex-forecast[t].changeNWC);
-   formulaCell(scen,C+rows["Discount factor"],"=1/(1+'Inputs'!$B$42)^"+(t+1),1/Math.pow(valuation.wacc,t+1));
+   formulaCell(scen,C+rows["Discount factor"],"=1/(1+'Inputs'!$B$41)^"+(t+1),1/Math.pow(valuation.wacc,t+1));
    formulaCell(scen,C+rows["PV of UFCF"],"="+C+rows.UFCF+"*"+C+rows["Discount factor"],0);
   }
-  const terminalFormula=project.dcf.terminalMethod==="growth"?"=IF('Inputs'!$B$41>'Inputs'!$B$36,"+lastFc+rows.UFCF+"*(1+'Inputs'!$B$36)/('Inputs'!$B$41-'Inputs'!$B$36),NA())":"="+lastFc+rows.EBITDA+"*'Inputs'!$B$37";
+  const terminalFormula="=IF('Inputs'!$B$35=""Perpetuity growth"",IF('Inputs'!$B$41>'Inputs'!$B$36,"+lastFc+rows.UFCF+"*(1+'Inputs'!$B$36)/('Inputs'!$B$41-'Inputs'!$B$36),NA()),"+lastFc+rows.EBITDA+"*'Inputs'!$B$37)";
   const terminalValue=project.dcf.terminalMethod==="growth"?(valuation.wacc>project.dcf.perpetualGrowth?forecast.at(-1).ufcf*(1+project.dcf.perpetualGrowth)/(valuation.wacc-project.dcf.perpetualGrowth):0):forecast.at(-1).ebitda*project.dcf.exitMultiple;
   row++;scen["A"+row]={v:"Terminal value",t:"s"};formulaCell(scen,"B"+row,terminalFormula,terminalValue);const tvRef="B"+row;row++;
   scen["A"+row]={v:"PV terminal value",t:"s"};formulaCell(scen,"B"+row,"="+tvRef+"*"+lastFc+rows["Discount factor"],terminalValue/Math.pow(1+valuation.wacc,n));const pvtvRef="B"+row;row++;
