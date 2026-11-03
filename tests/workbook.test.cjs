@@ -39,6 +39,9 @@ test("Excel report generates formula-linked statement, DCF, comps and sensitivit
   formula("Comparables","J4","C4/D4");
   formula("Sensitivity","B5","DCF");
   formula("Scenario Calc","B5","Sensitivity");
+  formula("Scenario Calc","B8","Historical IS");
+  formula("Scenario Calc","B15","Historical BS");
+  formula("Scenario Calc","B28","Historical BS");
   formula("Checks","C4","Forecast BS");
   assert.equal(wb.Sheets.Inputs.B12.v,p.assumptions.revenueGrowth);
   assert.equal(wb.Sheets.Inputs.B35.v,"Perpetuity growth");
