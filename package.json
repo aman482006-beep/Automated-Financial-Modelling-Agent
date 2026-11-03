@@ -1,0 +1,12 @@
+{
+  "name": "modelforge-financial-modelling-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static financial modelling workstation with formula-linked Excel export",
+  "scripts": {
+    "test": "node --test tests/*.test.cjs"
+  },
+  "devDependencies": {
+    "xlsx-js-style": "1.2.0"
+  }
+}
