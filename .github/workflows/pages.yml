@@ -16,12 +16,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Validate static entrypoint
+      - name: Validate application files
         run: |
           test -f index.html
           test -f styles.css
-          test -f app.js
-          node --check app.js
+          test -f engine.js
+          test -f workbook.js
+          test -f app-main.js
+          node --check engine.js
+          node --check workbook.js
+          node --check app-main.js
+      - name: Run deterministic financial model tests
+        run: node --test tests/engine.test.cjs
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
