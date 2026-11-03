@@ -114,6 +114,7 @@ function exportWorkbook(project,forecast,valuation,ratios){
   formulaCell(fbs,C+16,"=SUM("+C+"11:"+C+"15)",forecast[j].totalLiabEquity);
   formulaCell(fbs,C+17,"="+C+"10-"+C+"16",forecast[j].check);
  }
+ for(let j=0;j<n;j++){const C=col(j+2);setFormat(fis,C+"6","0.0%");}
  // Formula-linked historical ratios.
  const ratioNames=[["Revenue growth","revenueGrowth"],["Gross margin","grossMargin"],["EBITDA margin","ebitdaMargin"],["EBIT margin","ebitMargin"],["Net margin","netMargin"],["ROE","roe"],["ROA","roa"],["ROCE","roce"],["Current ratio","currentRatio"],["Quick ratio","quickRatio"],["Debt / equity","debtEquity"],["Interest coverage","interestCoverage"],["Asset turnover","assetTurnover"],["Working capital","workingCapital"],["Free cash flow","freeCashFlow"]];
  const ratioRows=[["Historical ratios"],["Calculated formulas link to historical statement inputs."],["Metric"].concat(periods)];
@@ -139,6 +140,9 @@ function exportWorkbook(project,forecast,valuation,ratios){
    "=IFERROR("+pcfx+"5+"+pcfx+"6,NA())"
   ];
   fx.forEach((formula,i)=>formulaCell(ratioSheet,C+(4+i),formula,Number.isFinite(ratios[j]?.[ratioNames[i][1]])?ratios[j][ratioNames[i][1]]:0));
+  [4,5,6,7,8,9,10,11].forEach(r=>setFormat(ratioSheet,C+r,"0.0%"));
+  [12,13,14,15,16].forEach(r=>setFormat(ratioSheet,C+r,"0.00x"));
+  [17,18].forEach(r=>setFormat(ratioSheet,C+r,"#,##0.0;[Red](#,##0.0);-"));
  }
  // DCF schedule, with formula references to forecasts.
  const dcfRows=[["Discounted cash flow valuation"],["All valuation lines are calculated from Forecast IS, Forecast CF and Inputs."],["WACC",""],["Cost of equity",""],["Tax rate",""],["Terminal value method",""],[""],["Forecast period","EBIT","NOPAT","D&A add-back","Capex","Change in NWC","UFCF","Discount factor","PV of UFCF"]];
@@ -155,6 +159,14 @@ function exportWorkbook(project,forecast,valuation,ratios){
   formulaCell(dcfSheet,"G"+r,"=C"+r+"+D"+r+"-E"+r+"-F"+r,valuation.flows[j].ufcf);
   formulaCell(dcfSheet,"H"+r,"=1/(1+$B$3)^"+(j+1),valuation.flows[j].discountFactor||0);
   formulaCell(dcfSheet,"I"+r,"=G"+r+"*H"+r,valuation.flows[j].ufcf*(valuation.flows[j].discountFactor||0));
+  setFormat(dcfSheet,"B"+r,"#,##0.0;[Red](#,##0.0);-");
+  setFormat(dcfSheet,"C"+r,"#,##0.0;[Red](#,##0.0);-");
+  setFormat(dcfSheet,"D"+r,"#,##0.0;[Red](#,##0.0);-");
+  setFormat(dcfSheet,"E"+r,"#,##0.0;[Red](#,##0.0);-");
+  setFormat(dcfSheet,"F"+r,"#,##0.0;[Red](#,##0.0);-");
+  setFormat(dcfSheet,"G"+r,"#,##0.0;[Red](#,##0.0);-");
+  setFormat(dcfSheet,"H"+r,"0.000");
+  setFormat(dcfSheet,"I"+r,"#,##0.0;[Red](#,##0.0);-");
  }
  const lastDcf=8+n, terminalRow=lastDcf+2, lastFc=col(n+1);
  dcfSheet["A"+terminalRow]={v:"Terminal value",t:"s"};dcfSheet["A"+(terminalRow+1)]={v:"PV of terminal value",t:"s"};dcfSheet["A"+(terminalRow+2)]={v:"PV of forecast UFCF",t:"s"};dcfSheet["A"+(terminalRow+3)]={v:"Enterprise value",t:"s"};dcfSheet["A"+(terminalRow+4)]={v:"Net debt",t:"s"};dcfSheet["A"+(terminalRow+5)]={v:"Equity value",t:"s"};dcfSheet["A"+(terminalRow+6)]={v:"Shares outstanding",t:"s"};dcfSheet["A"+(terminalRow+7)]={v:"Implied value per share",t:"s"};
