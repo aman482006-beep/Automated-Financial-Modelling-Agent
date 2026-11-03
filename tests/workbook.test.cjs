@@ -6,7 +6,7 @@ const path=require("node:path");
 const XLSX=require("xlsx-js-style");
 const E=require("../engine.js");
 
-global.window={XLSX};
+global.window={XLSX,ModelEngine:E};
 require("../workbook.js");
 
 test("Excel report generates formula-linked statement, DCF, comps and sensitivity tabs",t=>{
