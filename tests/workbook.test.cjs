@@ -29,6 +29,7 @@ test("Excel report generates formula-linked statement, DCF, comps and sensitivit
    assert.ok(!c.f.startsWith("="),"SheetJS formula field must not contain leading equals sign");
    if(includes)assert.ok(c.f.includes(includes),"Formula at "+sheet+"!"+cell+" should reference "+includes+"; got "+c.f);
   };
+  formula("Inputs","B41","B38");
   formula("Forecast IS","B5","Historical IS");
   formula("Forecast IS","B8","Inputs");
   formula("Forecast BS","B17","B10-B16");
@@ -37,7 +38,9 @@ test("Excel report generates formula-linked statement, DCF, comps and sensitivit
   formula("DCF","B15","Perpetuity growth");
   formula("DCF","B18","B16");
   formula("Comparables","J4","C4/D4");
+  formula("Comparables","B11","J7");
   formula("Sensitivity","B5","DCF");
+  formula("Sensitivity","F32","Scenario Calc");
   formula("Scenario Calc","B5","Sensitivity");
   formula("Scenario Calc","B8","Historical IS");
   formula("Scenario Calc","B15","Historical BS");
