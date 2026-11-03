@@ -6,6 +6,7 @@ function ref(c,r){return col(c)+r}
 function q(sheet){return "'"+sheet.replace(/'/g,"''")+"'"}
 function fcell(ws,cell,formula,value){const raw=String(formula??"");ws[cell]={t:"n",f:raw.startsWith("=")?raw.slice(1):raw,v:Number.isFinite(value)?value:0};}
 function setStyle(ws,cell,style){if(ws[cell])ws[cell].s=style}
+function setFormat(ws,cell,format){if(ws[cell])ws[cell].z=format;}
 const styles={
  title:{font:{name:"Aptos Display",sz:16,bold:true,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"14263F"}},alignment:{vertical:"center"}},
  section:{font:{name:"Aptos",sz:10,bold:true,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"2E5F9E"}}},
