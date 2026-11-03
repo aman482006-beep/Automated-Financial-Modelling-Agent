@@ -155,9 +155,9 @@ function exportWorkbook(project,forecast,valuation,ratios){
  }
  const lastDcf=8+n, terminalRow=lastDcf+2, lastFc=col(n+1);
  dcfSheet["A"+terminalRow]={v:"Terminal value",t:"s"};dcfSheet["A"+(terminalRow+1)]={v:"PV of terminal value",t:"s"};dcfSheet["A"+(terminalRow+2)]={v:"PV of forecast UFCF",t:"s"};dcfSheet["A"+(terminalRow+3)]={v:"Enterprise value",t:"s"};dcfSheet["A"+(terminalRow+4)]={v:"Net debt",t:"s"};dcfSheet["A"+(terminalRow+5)]={v:"Equity value",t:"s"};dcfSheet["A"+(terminalRow+6)]={v:"Shares outstanding",t:"s"};dcfSheet["A"+(terminalRow+7)]={v:"Implied value per share",t:"s"};
- formulaCell(dcfSheet,"B"+terminalRow,'=IF(\'Inputs\'!$B$36="Perpetuity growth",IF($B$3>\'Inputs\'!$B$37,'+lastFc+'14*(1+\'Inputs\'!$B$37)/($B$3-\'Inputs\'!$B$37),NA()),'+q("Forecast IS")+'!'+lastFc+'11*\'Inputs\'!$B$38)',valuation.terminalValue||0);
- formulaCell(dcfSheet,"B"+(terminalRow+1),"=B"+terminalRow+"*"+lastFc+"15",valuation.pvTerminal||0);
- formulaCell(dcfSheet,"B"+(terminalRow+2),"=SUM(B16:"+lastFc+"16)",valuation.pvForecast);
+ formulaCell(dcfSheet,"B"+terminalRow,'=IF(\'Inputs\'!$B$35="Perpetuity growth",IF($B$3>\'Inputs\'!$B$36,\'DCF\'!G'+lastDcf+'*(1+\'Inputs\'!$B$36)/($B$3-\'Inputs\'!$B$36),NA()),\'Forecast IS\'!'+lastFc+'11*\'Inputs\'!$B$37)',valuation.terminalValue||0);
+ formulaCell(dcfSheet,"B"+(terminalRow+1),"=B"+terminalRow+"*H"+lastDcf,valuation.pvTerminal||0);
+ formulaCell(dcfSheet,"B"+(terminalRow+2),"=SUM(I9:I"+lastDcf+")",valuation.pvForecast);
  formulaCell(dcfSheet,"B"+(terminalRow+3),"=B"+(terminalRow+1)+"+B"+(terminalRow+2),valuation.enterpriseValue||0);
  formulaCell(dcfSheet,"B"+(terminalRow+4),"="+q("Historical BS")+"!"+histLast+"12+"+q("Historical BS")+"!"+histLast+"13-"+q("Historical BS")+"!"+histLast+"5",valuation.netDebt);
  formulaCell(dcfSheet,"B"+(terminalRow+5),"=B"+(terminalRow+3)+"-B"+(terminalRow+4),valuation.equityValue||0);
