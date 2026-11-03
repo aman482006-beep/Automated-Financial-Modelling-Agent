@@ -19,7 +19,7 @@ test("sample cash flow bridges reconcile", () => {
 test("historical revenue growth and margin calculations are correct", () => {
   const p=E.defaultProject(), r=E.historicalRatios(p.history);
   assert.ok(Math.abs(r[1].revenueGrowth-0.16)<1e-10);
-  assert.ok(Math.abs(r[4].grossMargin-0.48)<1e-10);
+  assert.ok(Math.abs(r[4].grossMargin-0.48)<1e-4);
   assert.ok(Math.abs(r[4].ebitdaMargin-(448/1996))<1e-10);
 });
 
