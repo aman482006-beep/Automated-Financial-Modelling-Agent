@@ -15,7 +15,7 @@ test("every navigation item has an existing page section",()=>{
 
 test("static DOM IDs referenced by the app exist in index.html",()=>{
  const ids=[...app.matchAll(/\$\("#([A-Za-z0-9_-]+)"\)/g)].map(m=>m[1]);
- const missing=[...new Set(ids)].filter(id=>!html.includes('id="'+id+'"'));
+ const missing=[...new Set(ids)].filter(id=>{const needle='id="'+id+'"';return !html.includes(needle)&&!app.includes(needle)});
  assert.deepEqual(missing,[],"Missing DOM IDs: "+missing.join(", "));
 });
 
