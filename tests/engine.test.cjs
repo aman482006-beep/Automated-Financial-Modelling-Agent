@@ -9,6 +9,13 @@ test("sample historical balance sheets reconcile", () => {
   assert.ok(checks.every(x=>x.ok));
 });
 
+test("missing core statement inputs are clearly flagged", () => {
+  const p=E.defaultProject();
+  p.history.IS.revenue[0]=null;
+  const warnings=E.validateHistory(p.history);
+  assert.ok(warnings.some(x=>x.title==="Missing core statement data · 2021"&&!x.ok));
+});
+
 test("sample cash flow bridges reconcile", () => {
   const p=E.defaultProject();
   const checks=E.validateHistory(p.history).filter(x=>x.title.startsWith("Cash flow bridge"));
