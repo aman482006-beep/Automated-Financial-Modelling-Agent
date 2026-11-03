@@ -47,15 +47,15 @@ function exportWorkbook(project,forecast,valuation,ratios){
   ["DCF AND WACC ASSUMPTIONS"],["Risk-free rate",d.riskFreeRate],["Equity risk premium",d.equityRiskPremium],["Levered beta",d.beta],["Pre-tax cost of debt",d.costOfDebt],["Market value of equity",d.equityMarketValue],["Market value of debt",d.debtMarketValue],["Shares outstanding (millions)",d.sharesOutstanding],["Terminal value method",d.terminalMethod==="growth"?"Perpetuity growth":"Exit EBITDA multiple"],["Perpetual growth rate",d.perpetualGrowth],["Exit EBITDA multiple",d.exitMultiple],["Cost of equity",""],["Equity weight",""],["Debt weight",""],["WACC",""]
  ];
  const inputs=addSheet(wb,"Inputs",inputsRows,[39,25]);title(inputs,2,"ModelForge | Inputs and assumptions");
- const inputRows={revenueGrowth:12,grossMargin:13,employeePct:14,otherOpexPct:15,daPct:16,taxRate:17,capexPct:18,arDays:19,inventoryDays:20,apDays:21,otherCurrentAssetsPct:22,otherLiabilitiesPct:23,annualDebtRepayment:24,interestRate:25,dividendPayout:26,riskFreeRate:29,equityRiskPremium:30,beta:31,costOfDebt:32,equityMarketValue:33,debtMarketValue:34,sharesOutstanding:35,terminalMethod:36,perpetualGrowth:37,exitMultiple:38};
+ const inputRows={revenueGrowth:12,grossMargin:13,employeePct:14,otherOpexPct:15,daPct:16,taxRate:17,capexPct:18,arDays:19,inventoryDays:20,apDays:21,otherCurrentAssetsPct:22,otherLiabilitiesPct:23,annualDebtRepayment:24,interestRate:25,dividendPayout:26,riskFreeRate:28,equityRiskPremium:29,beta:30,costOfDebt:31,equityMarketValue:32,debtMarketValue:33,sharesOutstanding:34,terminalMethod:35,perpetualGrowth:36,exitMultiple:37};
  Object.keys(inputRows).forEach(k=>inputCell(inputs,"B"+inputRows[k],k==="terminalMethod"?(d.terminalMethod==="growth"?"Perpetuity growth":"Exit EBITDA multiple"):k==="sharesOutstanding"?d.sharesOutstanding:(d[k]??a[k])));
- formulaCell(inputs,"B39","=B29+B31*B30",valuation.costEquity);
- formulaCell(inputs,"B40","=IFERROR(B33/(B33+B34),0)",valuation.equityWeight);
- formulaCell(inputs,"B41","=IFERROR(B34/(B33+B34),0)",valuation.debtWeight);
- formulaCell(inputs,"B42","=B40*B39+B41*B32*(1-B17)",valuation.wacc);
- [3,4,5,6,7,8,9,10,11,28].forEach(r=>setStyle(inputs,"A"+r,styles.section));
- [12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,29,30,31,32,33,34,35,36,37,38].forEach(r=>setStyle(inputs,"B"+r,styles.input));
- [39,40,41,42].forEach(r=>setStyle(inputs,"B"+r,styles.formula));
+ formulaCell(inputs,"B38","=B28+B30*B29",valuation.costEquity);
+ formulaCell(inputs,"B39","=IFERROR(B32/(B32+B33),0)",valuation.equityWeight);
+ formulaCell(inputs,"B40","=IFERROR(B33/(B32+B33),0)",valuation.debtWeight);
+ formulaCell(inputs,"B41","=B39*B38+B40*B31*(1-B17)",valuation.wacc);
+ [3,4,5,6,7,8,9,10,11,27].forEach(r=>setStyle(inputs,"A"+r,styles.section));
+ [12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,28,29,30,31,32,33,34,35,36,37].forEach(r=>setStyle(inputs,"B"+r,styles.input));
+ [38,39,40,41].forEach(r=>setStyle(inputs,"B"+r,styles.formula));
  inputs["!autofilter"]={ref:"A11:B26"};
  // Forecast worksheet shells.
  function forecastSheet(name,rows){const arr=[ [name],["All projected values are formulas linked to Inputs and the adjacent statement schedules."],["Currency / unit",p.currency+" / "+p.unit],["Line item"].concat(forecast.map(x=>x.year)) ];rows.forEach(label=>arr.push([label]));const ws=addSheet(wb,name,arr,[34].concat(forecast.map(()=>14)));title(ws,n+1,name);headerRow(ws,4,n+1);return ws;}
