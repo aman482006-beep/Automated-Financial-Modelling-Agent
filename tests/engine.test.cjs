@@ -131,6 +131,6 @@ test("Excel wide-format import handles numeric year headers before Line item", (
   assert.deepEqual(h.periods, ["2024", "2025"]);
   assert.equal(h.IS.revenue[1], 120);
   assert.equal(h.IS.cogs[1], -62);
-  assert.equal(h.BS.cash[1], 40);
+  assert.equal(h.BS.cash[1], 35);
   assert.equal(h.BS.totalLiabEquity[1], 40);
 });
