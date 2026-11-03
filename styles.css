@@ -29,3 +29,9 @@ body[data-theme="midnight"] .dcf-result-panel{background:#101b2b}
 .manual-entry-footer p{margin:0}.manual-help{margin:10px 0 0;color:var(--muted);font-size:9px;line-height:1.55}
 @media(max-width:900px){.start-panel{align-items:flex-start;flex-direction:column}.start-actions{justify-content:flex-start}.manual-entry-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.start-panel{padding:15px}.start-actions{display:grid;grid-template-columns:1fr 1fr;width:100%}.start-actions #startBlank{grid-column:1/-1}.manual-entry-toolbar{grid-template-columns:1fr 1fr}.new-period{grid-column:1/-1}.manual-entry-grid{grid-template-columns:1fr 1fr;gap:9px}.manual-field{font-size:9px}.manual-entry-footer{align-items:flex-start;flex-direction:column}.manual-entry-footer .btn{width:100%}}
+
+/* Import-ready Excel template download */
+.template-download-row{display:flex;align-items:center;justify-content:space-between;gap:14px;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:12px 14px;margin:0 0 14px}
+.template-download-row>div{display:grid;gap:4px}.template-download-row b{font-size:10px;color:var(--ink)}.template-download-row small{font-size:9px;color:var(--muted);line-height:1.45}
+.template-download-row .btn{white-space:nowrap}
+@media(max-width:600px){.template-download-row{align-items:stretch;flex-direction:column}.template-download-row .btn{width:100%}}
