@@ -17,7 +17,7 @@ const ITEMS={
  ]
 };
 const ALIASES={
- revenue:"IS.revenue",sales:"IS.revenue",turnover:"IS.revenue",netrevenue:"IS.revenue",totalrevenue:"IS.revenue",
+ revenue:"IS.revenue",cashcashequivalents:"BS.cash",totalliabilitiesequity:"BS.totalLiabEquity",sales:"IS.revenue",turnover:"IS.revenue",netrevenue:"IS.revenue",totalrevenue:"IS.revenue",
  costofgoods:"IS.cogs",costofgoodssold:"IS.cogs",cogs:"IS.cogs",costofsales:"IS.cogs",
  grossprofit:"IS.grossProfit",grossincome:"IS.grossProfit",
  employeeexpenses:"IS.employeeExpenses",employeeexpense:"IS.employeeExpenses",staffcosts:"IS.employeeExpenses",salaries:"IS.employeeExpenses",personnelcosts:"IS.employeeExpenses",
@@ -72,6 +72,51 @@ function parseNumber(value){
  let s=String(value).trim();if(!s||s==="-"||s==="—"||s.toLowerCase()==="n/a")return null;
  let negative=/^\(.*\)$/.test(s);s=s.replace(/[₹$€£,\s()]/g,"").replace(/%$/,"");
  let n=Number(s);return Number.isFinite(n)?(negative?-Math.abs(n):n):null;
+}
+
+function recordsFromRows(rows,sheetName="",fileName=""){
+ if(!Array.isArray(rows)||!rows.length)return [];
+ const keys=Object.keys(rows[0]||{}),header=(wanted)=>keys.find(k=>wanted.includes(normaliseLabel(k)));
+ const periodKey=header(["period","year","date","fiscalyear","quarter"]);
+ const itemKey=header(["item","lineitem","account","description","particulars"]);
+ const valueKey=header(["value","amount","balance","reportedvalue","financialvalue"]);
+ const statementKey=header(["statement","statementtype","category"]);
+ const periodText=value=>{
+  if(value instanceof Date)return String(value.getFullYear());
+  const s=String(value??"").trim();
+  const q=s.match(/Q[1-4][ -]?(?:19|20)\\d{2}/i);
+  if(q)return q[0].replace(/([Qq][1-4])[ -]?((?:19|20)\\d{2})/,"$1 $2").toUpperCase();
+  const y=s.match(/(?:19|20)\\d{2}/);
+  return y?y[0]:s;
+ };
+ const out=[];
+ if(periodKey&&itemKey&&valueKey){
+  rows.forEach(row=>{
+   const period=periodText(row[periodKey]),value=parseNumber(row[valueKey]);
+   if(period&&String(row[itemKey]??"").trim()&&value!==null)out.push({period,label:String(row[itemKey]).trim(),value,statement:row[statementKey]||sheetName||fileName||""});
+  });
+  return out;
+ }
+ if(periodKey){
+  rows.forEach(row=>{
+   const period=periodText(row[periodKey]);if(!period)return;
+   keys.forEach(key=>{
+    if([periodKey,statementKey].includes(key)||["currency","unit","company"].includes(normaliseLabel(key)))return;
+    const value=parseNumber(row[key]);
+    if(value!==null)out.push({period,label:key,value,statement:row[statementKey]||sheetName||fileName||""});
+   });
+  });
+  return out;
+ }
+ const periodColumns=keys.filter(key=>/^(?:19|20)\\d{2}$|^Q[1-4][ -]?(?:19|20)\\d{2}$/i.test(String(key).trim()));
+ const labelKey=itemKey||keys.find(key=>!periodColumns.includes(key));
+ if(labelKey&&periodColumns.length){
+  rows.forEach(row=>periodColumns.forEach(periodKey=>{
+   const value=parseNumber(row[periodKey]),label=String(row[labelKey]??"").trim();
+   if(value!==null&&label)out.push({period:periodText(periodKey),label,value,statement:sheetName||fileName||""});
+  }));
+ }
+ return out;
 }
 function num(x, fallback=0){return x===null||x===undefined||x===""||!Number.isFinite(Number(x))?fallback:Number(x);}
 function lastValue(h,g,k){const arr=h[g]?.[k]||[];return num(arr[arr.length-1]);}
@@ -232,5 +277,5 @@ function operatingScenario(h,a,years,dcfInputs,terminalGrowth,terminalMultiple,m
  return calculateDCF(f,h,d,a).enterpriseValue;
 }
 function formatNumber(value,d=1){return Number.isFinite(value)?value.toLocaleString("en-IN",{minimumFractionDigits:d,maximumFractionDigits:d}):"—";}
-return {ITEMS,ALIASES,DEFAULT_ASSUMPTIONS,DEFAULT_DCF,DEFAULT_PEERS,SAMPLE,clone,blankHistory,defaultProject,normaliseLabel,mapLabel,parseNumber,num,historyFromRecords,historicalRatios,validateHistory,buildForecast,calculateWACC,calculateDCF,peerMultiples,peerStatistics,operatingScenario,formatNumber};
+return {ITEMS,ALIASES,DEFAULT_ASSUMPTIONS,DEFAULT_DCF,DEFAULT_PEERS,SAMPLE,clone,blankHistory,defaultProject,normaliseLabel,mapLabel,parseNumber,recordsFromRows,num,historyFromRecords,historicalRatios,validateHistory,buildForecast,calculateWACC,calculateDCF,peerMultiples,peerStatistics,operatingScenario,formatNumber};
 });
