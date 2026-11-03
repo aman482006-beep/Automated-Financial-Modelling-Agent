@@ -12,13 +12,13 @@
     <div class="side-project"><span class="online-dot"></span><span id="sideCompany">Aster Industries</span></div>
     <nav id="nav" aria-label="Main navigation">
       <button type="button" class="nav-btn active" data-page="overview"><span>⌂</span> Overview</button>
-      <button type="button" class="nav-btn" data-page="data"><span>⇧</span> Data & mapping</button>
-      <button type="button" class="nav-btn" data-page="history"><span>▤</span> Historical review</button>
-      <button type="button" class="nav-btn" data-page="model"><span>⌘</span> Forecast model</button>
-      <button type="button" class="nav-btn" data-page="dcf"><span>◈</span> DCF valuation</button>
-      <button type="button" class="nav-btn" data-page="comps"><span>▥</span> Comparables</button>
-      <button type="button" class="nav-btn" data-page="sensitivity"><span>▧</span> Sensitivities</button>
-      <button type="button" class="nav-btn" data-page="assistant"><span>✳</span> Model assistant</button>
+      <button type="button" class="nav-btn" data-page="data"><span>⇧</span> Enter data</button>
+      <button type="button" class="nav-btn" data-page="history"><span>▤</span> History</button>
+      <button type="button" class="nav-btn" data-page="model"><span>⌘</span> Forecast</button>
+      <button type="button" class="nav-btn" data-page="dcf"><span>◈</span> DCF</button>
+      <button type="button" class="nav-btn" data-page="comps"><span>▥</span> Peers</button>
+      <button type="button" class="nav-btn" data-page="sensitivity"><span>▧</span> Scenarios</button>
+      <button type="button" class="nav-btn" data-page="assistant"><span>✳</span> Assistant</button>
     </nav>
     <div class="sidebar-bottom"><span class="online-dot"></span> Calculation engine ready<small>All calculations run in your browser</small></div>
   </aside>
@@ -37,7 +37,8 @@
     <div class="content">
       <section class="page active" id="page-overview">
         <div class="eyebrow">FINANCIAL ANALYSIS WORKSPACE</div>
-        <div class="page-heading"><div><h1 id="overviewCompany">Aster Industries</h1><p>Review source financials, build an integrated forecast and produce an auditable valuation.</p></div><span class="status-pill" id="modelStatus">DEMO PROJECT</span></div>
+        <div class="page-heading"><div><h1 id="overviewCompany">Aster Industries</h1><p>Enter company financials, build a forecast and calculate a valuation.</p></div><span class="status-pill" id="modelStatus">DEMO PROJECT</span></div>
+        <article class="panel start-panel"><div class="start-copy"><span class="eyebrow">START HERE</span><h2>Bring your company’s numbers into the model</h2><p>Type financial figures directly, upload a CSV / Excel statement, or clear the demo and start with a blank company.</p></div><div class="start-actions"><button type="button" class="btn btn-primary" data-page="data">Enter data</button><button type="button" class="btn btn-outline" id="openImport">Upload CSV / Excel</button><button type="button" class="btn btn-outline" id="startBlank">Start blank</button></div></article>
         <div class="metric-grid" id="overviewMetrics"></div>
         <div class="two-col">
           <article class="panel"><div class="panel-heading"><div><h2>Revenue outlook</h2><p>Reported history and forecast · selected reporting unit</p></div><span class="chart-key">● Historical　○ Forecast</span></div><canvas id="revenueChart" height="220"></canvas></article>
@@ -50,8 +51,9 @@
       </section>
 
       <section class="page" id="page-data">
-        <div class="eyebrow">01 / PROJECT & SOURCE DATA</div><div class="page-heading"><div><h1>Company & data</h1><p>Set up the report, then import statements or start with the included sample company.</p></div><button type="button" class="btn btn-outline" id="loadSample">Load sample company</button></div>
-        <article class="panel"><div class="panel-heading"><div><h2>Report details</h2><p>These fields appear in the exported Excel report and CSV pack.</p></div></div><div class="form-grid">
+        <div class="eyebrow">01 / COMPANY FINANCIALS</div><div class="page-heading"><div><h1>Enter your data</h1><p>Start by entering figures below or import an existing financial statement. Your model updates when you save.</p></div><button type="button" class="btn btn-outline" id="loadSample">Load demo data</button></div>
+        <article class="panel manual-entry-panel"><div class="panel-heading"><div><h2>1. Enter financial figures</h2><p>Type values directly. Switch between income statement, balance sheet and cash flow.</p></div><span class="tag">MANUAL INPUT</span></div><div class="manual-entry-toolbar"><label>Period<select id="manualPeriodSelect"></select></label><label>Statement<select id="manualStatementSelect"><option value="IS">Income statement</option><option value="BS">Balance sheet</option><option value="CF">Cash flow</option></select></label><div class="new-period"><label for="newManualPeriod">Add a period</label><div><input id="newManualPeriod" type="text" placeholder="e.g. 2026"><button type="button" class="btn btn-outline" id="addManualPeriod">Add</button></div></div></div><div id="manualEntryGrid" class="manual-entry-grid"></div><div class="manual-entry-footer"><p id="manualEntryStatus" class="muted">Choose a period and enter the figures you have. Leave unavailable items blank.</p><button type="button" class="btn btn-primary" id="saveManualEntry">Save figures</button></div><p class="manual-help">Use the reporting unit selected below (for example, INR millions). Enter expenses and cash outflows as negative numbers. You can leave fields blank when the figure is unavailable.</p></article>
+        <article class="panel"><div class="panel-heading"><div><h2>2. Company & report details</h2><p>These details appear in the exported Excel report and CSV pack.</p></div></div><div class="form-grid">
           <label>Company name<input id="companyName" value="Aster Industries"></label><label>Prepared by / analyst<input id="analystName" value="Financial Analyst"></label>
           <label>Industry<input id="industry" value="Industrials"></label><label>Valuation date<input id="valuationDate" type="date"></label>
           <label>Currency<select id="currency"><option value="INR">INR — Indian Rupee</option><option value="USD">USD — US Dollar</option><option value="EUR">EUR — Euro</option><option value="GBP">GBP — Pound Sterling</option><option value="SGD">SGD — Singapore Dollar</option></select></label>
@@ -59,11 +61,11 @@
           <label>Reporting frequency<select id="frequency"><option value="Annual">Annual</option><option value="Quarterly">Quarterly</option></select></label>
           <label>Shares outstanding (millions)<input id="shares" type="number" min="0.0001" step="any" value="100"></label>
         </div></article>
-        <article class="panel"><div class="panel-heading"><div><h2>Import financial statements</h2><p>CSV and Excel workbooks are supported. Upload one workbook or multiple statement files.</p></div><span class="tag">CSV · XLSX · XLS</span></div>
+        <article class="panel" id="importPanel"><div class="panel-heading"><div><h2>2. Import a financial statement</h2><p>Upload CSV or Excel files instead of typing figures one by one.</p></div><span class="tag">CSV · XLSX · XLS</span></div>
           <div class="upload-row"><label class="upload-drop"><input id="fileInput" type="file" accept=".csv,.xlsx,.xls" multiple><span class="upload-icon">↑</span><b>Choose statement files</b><small>Or drag files into this area · multiple files supported</small></label><div class="upload-info"><b>Expected columns</b><p>Wide format: Period / Year plus line-item columns such as Revenue, EBITDA, Cash, PP&E.</p><p>Long format: Period, Statement, Item and Value columns.</p><p>Excel: first sheet or multiple statement-named sheets.</p><button type="button" class="text-link" id="downloadSampleCsv">Download sample CSV ↗</button><span id="importStatus">No files imported in this session.</span></div></div>
         </article>
-        <article class="panel"><div class="panel-heading"><div><h2>Source field mapping</h2><p>Change how imported labels map to standard financial statement items. Unmapped rows are not discarded.</p></div><button type="button" class="btn btn-outline" id="applyMapping">Apply mapping</button></div><div class="table-scroll"><table id="mappingTable"></table></div></article>
-        <article class="panel"><div class="panel-heading"><div><h2>Validation report</h2><p>Review warnings before using the data in a forecast or valuation.</p></div><button type="button" class="btn btn-outline" id="runChecks">↻ Run checks</button></div><div id="validationList" class="validation-list"></div></article>
+        <article class="panel"><div class="panel-heading"><div><h2>3. Check source field mapping</h2><p>Change how imported labels map to standard financial statement items. Unmapped rows are not discarded.</p></div><button type="button" class="btn btn-outline" id="applyMapping">Apply mapping</button></div><div class="table-scroll"><table id="mappingTable"></table></div></article>
+        <article class="panel"><div class="panel-heading"><div><h2>4. Check data quality</h2><p>Review warnings before using the data in a forecast or valuation.</p></div><button type="button" class="btn btn-outline" id="runChecks">↻ Run checks</button></div><div id="validationList" class="validation-list"></div></article>
         <div class="panel-actions"><button type="button" class="btn btn-primary" id="csvExport">↓ CSV report pack</button><button type="button" class="btn btn-outline" id="saveProject">↓ Save project file</button><label class="btn btn-outline file-button">Load project file<input id="loadProjectFile" type="file" accept=".json,application/json"></label><span class="muted">Project files stay on your device unless you choose to share them.</span></div>
       </section>
 
