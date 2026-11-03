@@ -7,7 +7,7 @@
 const clone=x=>JSON.parse(JSON.stringify(x));
 const ITEMS={
  IS:[
-  ["revenue","Revenue"],["cogs","Cost of goods sold"],["grossProfit","Gross profit"],["employeeExpenses","Employee expenses"],["otherOpex","Other operating expenses"],["ebitda","EBITDA"],["da","Depreciation & amortisation"],["ebit","EBIT"],["interestExpense","Interest expense"],["pbt","Profit before tax"],["tax","Tax expense"],["netIncome","Net income"]
+  ["revenue","Revenue"],["cogs","Cost of goods sold"],["grossProfit","Gross profit"],["employeeExpenses","Employee expenses"],["otherOpex","Other operating expenses"],["ebitda","EBITDA"],["da","Depreciation & amortisation"],["ebit","EBIT"],["interestExpense","Interest expense"],["pbt","Profit before tax"],["tax","Tax expense"],["netIncome","Net income"],["otherIncome","Other income"]
  ],
  BS:[
   ["cash","Cash & cash equivalents"],["ar","Accounts receivable"],["inventory","Inventory"],["otherCurrentAssets","Other current assets"],["ppe","Property, plant & equipment"],["totalAssets","Total assets"],["ap","Accounts payable"],["shortDebt","Short-term debt"],["longDebt","Long-term debt"],["otherLiabilities","Other operating liabilities"],["equity","Shareholders' equity"],["totalLiabEquity","Total liabilities & equity"]
@@ -24,7 +24,7 @@ const ALIASES={
  otheroperatingexpenses:"IS.otherOpex",operatingexpenses:"IS.otherOpex",otheropex:"IS.otherOpex",sellinggeneralandadministrative:"IS.otherOpex",sganda:"IS.otherOpex",
  ebitda:"IS.ebitda",depreciation:"IS.da",amortisation:"IS.da",amortization:"IS.da",depreciationamortisation:"IS.da",depreciationandamortisation:"IS.da",da:"IS.da",
  ebit:"IS.ebit",operatingprofit:"IS.ebit",operatingincome:"IS.ebit",interestexpense:"IS.interestExpense",financecosts:"IS.interestExpense",interestcost:"IS.interestExpense",
- pbt:"IS.pbt",profitbeforetax:"IS.pbt",earningsbeforetax:"IS.pbt",tax:"IS.tax",taxexpense:"IS.tax",incometax:"IS.tax",netincome:"IS.netIncome",profitaftertax:"IS.netIncome",pat:"IS.netIncome",
+ pbt:"IS.pbt",profitbeforetax:"IS.pbt",earningsbeforetax:"IS.pbt",otherincome:"IS.otherIncome",nonoperatingincome:"IS.otherIncome",tax:"IS.tax",taxexpense:"IS.tax",incometax:"IS.tax",netincome:"IS.netIncome",profitaftertax:"IS.netIncome",pat:"IS.netIncome",
  cash:"BS.cash",cashandcashequivalents:"BS.cash",cashandbank:"BS.cash",cashandequivalents:"BS.cash",
  ar:"BS.ar",accountsreceivable:"BS.ar",tradereceivables:"BS.ar",tradeandotherreceivables:"BS.ar",
  inventory:"BS.inventory",inventories:"BS.inventory",stock:"BS.inventory",
@@ -52,7 +52,7 @@ const DEFAULT_PEERS=[
 const SAMPLE={
  name:"Aster Industries",analyst:"Financial Analyst",industry:"Industrials",valuationDate:"2026-11-03",currency:"INR",unit:"millions",frequency:"Annual",sharesOutstanding:100,
  periods:["2021","2022","2023","2024","2025"],
- IS:{revenue:[1200,1392,1591,1782,1996],cogs:[-660,-752,-859,-944,-1038],grossProfit:[540,640,732,838,958],employeeExpenses:[-180,-202,-227,-249,-275],otherOpex:[-150,-170,-191,-214,-235],ebitda:[210,268,314,375,448],da:[-55,-61,-68,-76,-84],ebit:[155,207,246,299,364],interestExpense:[-34,-36,-39,-42,-45],pbt:[121,171,207,257,319],tax:[-30,-43,-52,-64,-80],netIncome:[91,128,155,193,239]},
+ IS:{revenue:[1200,1392,1591,1782,1996],otherIncome:[0,0,0,0,0],cogs:[-660,-752,-859,-944,-1038],grossProfit:[540,640,732,838,958],employeeExpenses:[-180,-202,-227,-249,-275],otherOpex:[-150,-170,-191,-214,-235],ebitda:[210,268,314,375,448],da:[-55,-61,-68,-76,-84],ebit:[155,207,246,299,364],interestExpense:[-34,-36,-39,-42,-45],pbt:[121,171,207,257,319],tax:[-30,-43,-52,-64,-80],netIncome:[91,128,155,193,239]},
  BS:{cash:[90,105,125,152,185],ar:[150,172,195,219,246],inventory:[120,132,148,164,181],otherCurrentAssets:[40,45,49,54,60],ppe:[420,455,492,530,573],totalAssets:[820,909,1009,1119,1245],ap:[100,112,127,141,158],shortDebt:[55,58,60,62,65],longDebt:[250,240,225,205,180],otherLiabilities:[75,82,89,96,104],equity:[340,417,508,615,738],totalLiabEquity:[820,909,1009,1119,1245]},
  CF:{cfo:[145,180,210,251,294],capex:[-90,-100,-110,-120,-132],cfi:[-90,-100,-110,-120,-132],cff:[-45,-65,-80,-104,-129],fcf:[55,80,100,131,162]}
 };
@@ -118,6 +118,153 @@ function recordsFromRows(rows,sheetName="",fileName=""){
  }
  return out;
 }
+
+function parseScreenerDataSheet(matrix){
+ if(!Array.isArray(matrix)||!matrix.length)return null;
+ const rows=matrix;
+ const rowLabel=row=>normaliseLabel(row?.[0]??"");
+ const section=names=>rows.findIndex(row=>names.includes(rowLabel(row)));
+ const pStart=section(["profitloss"]),bStart=section(["balancesheet"]),cStart=section(["cashflow"]);
+ if(pStart<0||bStart<0||cStart<0)return null;
+ const qStart=section(["quarters"]);
+ const nextAfter=(start,candidates)=>candidates.filter(x=>x>start).sort((a,b)=>a-b)[0]??rows.length;
+ const pEnd=nextAfter(pStart,[qStart,bStart,cStart]),bEnd=nextAfter(bStart,[cStart]),cEnd=rows.length;
+ const findRow=(start,end,names)=>{
+  for(let i=start+1;i<end;i++)if(names.includes(rowLabel(rows[i])))return rows[i];
+  return null;
+ };
+ const findRows=(start,end,name)=>rows.slice(start+1,end).filter(row=>rowLabel(row)===normaliseLabel(name));
+ const numValue=value=>{
+  if(value===null||value===undefined||value==="")return null;
+  if(typeof value==="number")return Number.isFinite(value)?value:null;
+  let s=String(value).trim().replace(/,/g,"").replace(/[₹$€£\s]/g,"");
+  if(!s||s==="-"||s==="—"||s.toLowerCase()==="n/a")return null;
+  const negative=/^\(.*\)$/.test(s);s=s.replace(/[()]/g,"");
+  const n=Number(s);return Number.isFinite(n)?(negative?-Math.abs(n):n):null;
+ };
+ const periodFromDate=value=>{
+  const serial=numValue(value);
+  if(serial!==null&&serial>20000&&serial<80000){
+   const d=new Date(Date.UTC(1899,11,30)+Math.round(serial)*86400000);
+   const year=d.getUTCFullYear(),month=d.getUTCMonth()+1,day=d.getUTCDate();
+   if(month===3&&day===31)return "FY"+year;
+   const fy=month>=4?year+1:year,quarter=month>=4&&month<=6?1:month>=7&&month<=9?2:month>=10?3:4;
+   return "Q"+quarter+" FY"+fy;
+  }
+  const match=String(value??"").trim().match(/(?:19|20)\d{2}/);
+  return match?"FY"+match[0]:String(value??"").trim();
+ };
+ const at=(row,index)=>numValue(row?.[index+1]);
+ const sumAbs=(start,end,names,index)=>{
+  let found=false,total=0;
+  for(let i=start+1;i<end;i++){
+   if(names.includes(rowLabel(rows[i]))){
+    const value=at(rows[i],index);
+    if(value!==null){found=true;total+=Math.abs(value);}
+   }
+  }
+  return found?total:null;
+ };
+ const pDates=findRow(pStart,pEnd,["reportdate"]),bDates=findRow(bStart,bEnd,["reportdate"]),cDates=findRow(cStart,cEnd,["reportdate"]);
+ if(!pDates||!bDates||!cDates)return null;
+ const pPeriods=pDates.slice(1).map(periodFromDate),bPeriods=bDates.slice(1).map(periodFromDate),cPeriods=cDates.slice(1).map(periodFromDate);
+ const records=[];
+ const add=(period,label,value,mapped)=>{
+  if(value===null||value===undefined||!Number.isFinite(Number(value)))return;
+  records.push({period,label,value:Number(value),mapped,statement:"Screener.in Data Sheet"});
+ };
+ const pRow=names=>findRow(pStart,pEnd,names);
+ const sales=pRow(["sales","revenue"]),employee=pRow(["employeecost"]),selling=pRow(["sellingandadmin"]),otherExpense=pRow(["otherexpenses"]);
+ const depreciation=pRow(["depreciation"]),interest=pRow(["interest"]),otherIncome=pRow(["otherincome"]);
+ const pbt=pRow(["profitbeforetax"]),tax=pRow(["tax"]),netProfit=pRow(["netprofit"]),dividend=pRow(["dividendamount"]);
+ for(let i=0;i<pPeriods.length;i++){
+  const period=pPeriods[i],revenue=at(sales,i);
+  if(!period||revenue===null)continue;
+  add(period,"Revenue",revenue,"IS.revenue");
+  const cogs=sumAbs(pStart,pEnd,["rawmaterialcost","changeininventory","powerandfuel","othermfrexp"],i);
+  if(cogs!==null){
+   add(period,"Cost of goods sold",-cogs,"IS.cogs");
+   add(period,"Gross profit",revenue-cogs,"IS.grossProfit");
+  }
+  const emp=at(employee,i),sell=at(selling,i),other=at(otherExpense,i);
+  if(emp!==null)add(period,"Employee expenses",-Math.abs(emp),"IS.employeeExpenses");
+  if(sell!==null||other!==null)add(period,"Other operating expenses",-(Math.abs(sell||0)+Math.abs(other||0)),"IS.otherOpex");
+  const gross=cogs===null?null:revenue-cogs;
+  if(gross!==null&&emp!==null&&(sell!==null||other!==null)){
+   const ebitda=gross-Math.abs(emp)-Math.abs(sell||0)-Math.abs(other||0);
+   add(period,"EBITDA",ebitda,"IS.ebitda");
+   const da=at(depreciation,i);
+   if(da!==null){
+    add(period,"Depreciation",-Math.abs(da),"IS.da");
+    add(period,"EBIT",ebitda-Math.abs(da),"IS.ebit");
+   }
+  }
+  const oi=at(otherIncome,i),int=at(interest,i),beforeTax=at(pbt,i),taxValue=at(tax,i),ni=at(netProfit,i);
+  if(oi!==null)add(period,"Other income",oi,"IS.otherIncome");
+  if(int!==null)add(period,"Interest expense",-Math.abs(int),"IS.interestExpense");
+  if(beforeTax!==null)add(period,"Profit before tax",beforeTax,"IS.pbt");
+  if(taxValue!==null)add(period,"Tax expense",-Math.abs(taxValue),"IS.tax");
+  if(ni!==null)add(period,"Net income",ni,"IS.netIncome");
+ }
+ const bLabels={
+  sharecapital:["equitysharecapital"],reserves:["reserves"],borrowings:["borrowings"],otherliabilities:["otherliabilities"],
+  netblock:["netblock"],cwip:["capitalworkinprogress"],investments:["investments"],otherassets:["otherassets"],
+  receivables:["receivables","debtors"],inventory:["inventory"],cash:["cashbank","cashandbank"]
+ };
+ const bRows={};Object.entries(bLabels).forEach(([key,names])=>bRows[key]=findRow(bStart,bEnd,names));
+ const totals=findRows(bStart,bEnd,"total"),liabilitiesTotal=totals[0]||null,assetsTotal=totals[1]||totals[0]||null;
+ for(let i=0;i<bPeriods.length;i++){
+  const period=bPeriods[i];if(!period)continue;
+  const get=key=>at(bRows[key],i);
+  const capital=get("sharecapital"),reserves=get("reserves"),borrowings=get("borrowings"),otherLiabilities=get("otherliabilities");
+  const netBlock=get("netblock"),cwip=get("cwip"),investments=get("investments"),otherAssets=get("otherassets");
+  const equity=capital===null&&reserves===null?null:(capital||0)+(reserves||0);
+  const ppe=netBlock===null&&cwip===null?null:(netBlock||0)+(cwip||0);
+  const otherCurrent=investments===null&&otherAssets===null?null:(investments||0)+(otherAssets||0);
+  if(equity!==null)add(period,"Shareholders' equity",equity,"BS.equity");
+  if(borrowings!==null)add(period,"Long-term debt",Math.abs(borrowings),"BS.longDebt");
+  if(otherLiabilities!==null)add(period,"Other operating liabilities",Math.abs(otherLiabilities),"BS.otherLiabilities");
+  add(period,"Short-term debt",0,"BS.shortDebt");
+  add(period,"Accounts payable",0,"BS.ap");
+  if(ppe!==null)add(period,"Property, plant & equipment",ppe,"BS.ppe");
+  if(otherCurrent!==null)add(period,"Other current assets",otherCurrent,"BS.otherCurrentAssets");
+  const receivables=get("receivables"),inventory=get("inventory"),cash=get("cash");
+  if(receivables!==null)add(period,"Accounts receivable",Math.abs(receivables),"BS.ar");
+  if(inventory!==null)add(period,"Inventory",Math.abs(inventory),"BS.inventory");
+  if(cash!==null)add(period,"Cash & cash equivalents",Math.abs(cash),"BS.cash");
+  const totalAssets=at(assetsTotal,i),totalLiabilities=at(liabilitiesTotal,i);
+  if(totalAssets!==null)add(period,"Total assets",totalAssets,"BS.totalAssets");
+  if(totalLiabilities!==null)add(period,"Total liabilities & equity",totalLiabilities,"BS.totalLiabEquity");
+ }
+ const cfo=findRow(cStart,cEnd,["cashfromoperatingactivity"]);
+ const cfi=findRow(cStart,cEnd,["cashfrominvestingactivity"]);
+ const cff=findRow(cStart,cEnd,["cashfromfinancingactivity"]);
+ for(let i=0;i<cPeriods.length;i++){
+  const period=cPeriods[i];if(!period)continue;
+  const operating=at(cfo,i),investing=at(cfi,i),financing=at(cff,i);
+  if(operating!==null)add(period,"Cash flow from operations",operating,"CF.cfo");
+  if(investing!==null)add(period,"Cash flow from investing",investing,"CF.cfi");
+  if(financing!==null)add(period,"Cash flow from financing",financing,"CF.cff");
+  // Screener summary exports do not give a standalone capex line.
+  if(operating!==null&&investing!==null)add(period,"Free cash flow",operating+investing,"CF.fcf");
+ }
+ const metaRow=key=>rows.find(row=>rowLabel(row)===normaliseLabel(key));
+ const companyName=String(metaRow("companyname")?.[1]??"").trim();
+ const currentPrice=numValue(metaRow("currentprice")?.[1]);
+ const marketCapCrores=numValue(metaRow("marketcapitalization")?.[1]);
+ const shareRow=findRow(bStart,bEnd,["noofequityshares"]);
+ const shareValues=shareRow?shareRow.slice(1).map(numValue).filter(value=>value!==null):[];
+ const sharesOutstandingCrores=shareValues.length?shareValues.at(-1)/10000000:null;
+ const dividendValues=dividend?dividend.slice(1).map(numValue).filter(value=>value!==null):[];
+ const latestPeriod=pPeriods.filter(Boolean).at(-1)||bPeriods.filter(Boolean).at(-1)||null;
+ const latestYear=latestPeriod?Number(latestPeriod.match(/(?:19|20)\d{2}/)?.[0]):null;
+ return {
+  records,companyName,currentPrice,marketCapCrores,sharesOutstandingCrores,
+  dividendAmount:dividendValues.at(-1)??null,latestPeriod,latestDate:latestYear?latestYear+"-03-31":null,
+  source:"Screener.in",frequency:"Annual",unit:"crores",currency:"INR",
+  sourceNotes:["Annual financials were imported from the Data Sheet. Quarterly data, when present, remains separate so annual and quarterly periods are not mixed.","Standalone capex is not separately supplied; historical free cash flow is shown as operating cash flow plus net investing cash flow."]
+ };
+}
 function num(x, fallback=0){return x===null||x===undefined||x===""||!Number.isFinite(Number(x))?fallback:Number(x);}
 function lastValue(h,g,k){const arr=h[g]?.[k]||[];return num(arr[arr.length-1]);}
 function atValue(h,g,k,i){return h[g]?.[k]?.[i]??null;}
@@ -127,9 +274,10 @@ function derivedValue(h,g,k,i){
  if(g==="IS"&&k==="grossProfit"&&atValue(h,g,"revenue",i)!==null&&atValue(h,g,"cogs",i)!==null)return v("revenue")+v("cogs");
  if(g==="IS"&&k==="ebitda"&&atValue(h,g,"grossProfit",i)!==null)return v("grossProfit")+v("employeeExpenses")+v("otherOpex");
  if(g==="IS"&&k==="ebit"&&atValue(h,g,"ebitda",i)!==null)return v("ebitda")+v("da");
- if(g==="IS"&&k==="pbt"&&atValue(h,g,"ebit",i)!==null)return v("ebit")+v("interestExpense");
+ if(g==="IS"&&k==="pbt"&&atValue(h,g,"ebit",i)!==null)return v("ebit")+v("interestExpense")+(atValue(h,g,"otherIncome",i)===null?0:v("otherIncome"));
  if(g==="IS"&&k==="netIncome"&&atValue(h,g,"pbt",i)!==null)return v("pbt")+v("tax");
  if(g==="CF"&&k==="fcf"&&atValue(h,g,"cfo",i)!==null&&atValue(h,g,"capex",i)!==null)return v("cfo")+v("capex");
+ if(g==="CF"&&k==="fcf"&&atValue(h,g,"cfo",i)!==null&&atValue(h,g,"cfi",i)!==null)return v("cfo")+v("cfi");
  return null;
 }
 function periodSort(a,b){
@@ -178,7 +326,7 @@ function validateHistory(h){
  if(!n)add(false,"Historical periods","No historical data has been imported or loaded.");
  for(let i=0;i<n;i++){
   const p=h.periods[i];
-  const required=[["Revenue",atValue(h,"IS","revenue",i)],["Cash and cash equivalents",atValue(h,"BS","cash",i)],["Total assets",atValue(h,"BS","totalAssets",i)],["Shareholders' equity",atValue(h,"BS","equity",i)],["Cash flow from operations",atValue(h,"CF","cfo",i)],["Capital expenditure",atValue(h,"CF","capex",i)]];
+  const required=[["Revenue",atValue(h,"IS","revenue",i)],["Cash and cash equivalents",atValue(h,"BS","cash",i)],["Total assets",atValue(h,"BS","totalAssets",i)],["Shareholders' equity",atValue(h,"BS","equity",i)],["Cash flow from operations",atValue(h,"CF","cfo",i)],["Investing cash flow / capital expenditure",atValue(h,"CF","capex",i)??atValue(h,"CF","cfi",i)]];
   const missing=required.filter(([,v])=>v===null||v===undefined).map(([label])=>label);
   add(missing.length===0,"Missing core statement data · "+p,missing.length?"Missing: "+missing.join(", "):"Core income statement, balance sheet and cash flow items are present.");
   const ta=atValue(h,"BS","totalAssets",i),tle=atValue(h,"BS","totalLiabEquity",i);
@@ -196,7 +344,7 @@ function validateHistory(h){
    ["Gross profit",["revenue","cogs"],"grossProfit",(a)=>a[0]+a[1]],
    ["EBITDA",["grossProfit","employeeExpenses","otherOpex"],"ebitda",(a)=>a.reduce((s,x)=>s+x,0)],
    ["EBIT",["ebitda","da"],"ebit",(a)=>a[0]+a[1]],
-   ["Profit before tax",["ebit","interestExpense"],"pbt",(a)=>a[0]+a[1]],
+   ["Profit before tax",["ebit","interestExpense"],"pbt",(a)=>a[0]+a[1]+(atValue(h,"IS","otherIncome",i)??0)],
    ["Net income",["pbt","tax"],"netIncome",(a)=>a[0]+a[1]]
   ];
   subtotals.forEach(([label,inputs,result,fn])=>{
@@ -277,5 +425,5 @@ function operatingScenario(h,a,years,dcfInputs,terminalGrowth,terminalMultiple,m
  return calculateDCF(f,h,d,a).enterpriseValue;
 }
 function formatNumber(value,d=1){return Number.isFinite(value)?value.toLocaleString("en-IN",{minimumFractionDigits:d,maximumFractionDigits:d}):"—";}
-return {ITEMS,ALIASES,DEFAULT_ASSUMPTIONS,DEFAULT_DCF,DEFAULT_PEERS,SAMPLE,clone,blankHistory,defaultProject,normaliseLabel,mapLabel,parseNumber,recordsFromRows,num,historyFromRecords,historicalRatios,validateHistory,buildForecast,calculateWACC,calculateDCF,peerMultiples,peerStatistics,operatingScenario,formatNumber};
+return {ITEMS,ALIASES,DEFAULT_ASSUMPTIONS,DEFAULT_DCF,DEFAULT_PEERS,SAMPLE,clone,blankHistory,defaultProject,normaliseLabel,mapLabel,parseNumber,recordsFromRows,parseScreenerDataSheet,num,historyFromRecords,historicalRatios,validateHistory,buildForecast,calculateWACC,calculateDCF,peerMultiples,peerStatistics,operatingScenario,formatNumber};
 });
