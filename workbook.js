@@ -1,5 +1,6 @@
 (function(root){
 "use strict";
+const X=root.XLSX;
 function col(n){let s="";while(n>0){let r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26)}return s}
 function ref(c,r){return col(c)+r}
 function q(sheet){return "'"+sheet.replace(/'/g,"''")+"'"}
@@ -14,10 +15,10 @@ const styles={
  text:{font:{name:"Aptos",sz:10,color:{rgb:"40516A"}}}
 };
 function addSheet(wb,name,rows,widths){
- const ws=XLSX.utils.aoa_to_sheet(rows);
+ const ws=X.utils.aoa_to_sheet(rows);
  ws["!cols"]=(widths||[]).map(w=>({wch:w}));
  ws["!views"]=[{state:"frozen",ySplit:4,xSplit:1,topLeftCell:"B5",activePane:"bottomRight"}];
- XLSX.utils.book_append_sheet(wb,ws,name);return ws;
+ X.utils.book_append_sheet(wb,ws,name);return ws;
 }
 function title(ws,lastCol,titleText){ws["A1"]={v:titleText,t:"s",s:styles.title};ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:lastCol-1}}];ws["!rows"]=ws["!rows"]||[];ws["!rows"][0]={hpt:28};}
 function headerRow(ws,row,cols){for(let c=1;c<=cols;c++)setStyle(ws,ref(c,row),styles.header)}
@@ -32,8 +33,8 @@ function addHistorical(wb,titleText,periods,group,items){
  return ws;
 }
 function exportWorkbook(project,forecast,valuation,ratios){
- if(!root.XLSX)throw new Error("Excel writer is not available. Reload this page with internet access.");
- const X=root.XLSX,p=project.profile,h=project.history,a=project.assumptions,d=project.dcf,n=forecast.length,periods=h.periods,lastHist=h.periods.length,wb=X.utils.book_new();
+ if(!X)throw new Error("Excel writer is not available. Reload this page with internet access.");
+ const p=project.profile,h=project.history,a=project.assumptions,d=project.dcf,n=forecast.length,periods=h.periods,lastHist=h.periods.length,wb=X.utils.book_new();
  const iRows={revenue:5,cogs:6,grossProfit:7,employeeExpenses:8,otherOpex:9,ebitda:10,da:11,ebit:12,interestExpense:13,pbt:14,tax:15,netIncome:16};
  const bRows={cash:5,ar:6,inventory:7,otherCurrentAssets:8,ppe:9,totalAssets:10,ap:11,shortDebt:12,longDebt:13,otherLiabilities:14,equity:15,totalLiabEquity:16};
  const cRows={cfo:5,capex:6,cfi:7,cff:8,fcf:9};
