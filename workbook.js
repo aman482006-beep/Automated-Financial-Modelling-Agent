@@ -197,6 +197,12 @@ function exportWorkbook(project,forecast,valuation,ratios){
  formulaCell(comps,"B"+(impRow+2),"=K"+medianRow+"*"+q("Historical IS")+"!"+histLast+"10",null);
  formulaCell(comps,"B"+(impRow+3),"=L"+medianRow+"*"+q("Historical IS")+"!"+histLast+"12",null);
  headerRow(comps,3,14);
+ const dcfAt=(rate,method,growth,multiple)=>{
+  const flows=forecast.map(x=>x.ebit*(1-a.taxRate)-x.da-x.capex-x.changeNWC);
+  const pv=flows.reduce((sum,x,i)=>sum+x/Math.pow(1+rate,i+1),0),lastFlow=flows.at(-1)||0,lastForecast=forecast.at(-1)||{ebitda:0};
+  const tv=method==="growth"?(rate>growth?lastFlow*(1+growth)/(rate-growth):NaN):lastForecast.ebitda*multiple;
+  return pv+tv/Math.pow(1+rate,flows.length);
+ };
  // Sensitivity formulas: formula cells are live in Excel, not hard-coded snapshots.
  const sensRows=[["Sensitivity analysis"],["Formula-driven scenario values. Change the WACC / terminal inputs on Inputs to update."],["WACC vs Perpetual Growth"],["WACC ↓ / Growth →",-2,-1,0,1,2],[""]];
  for(let s=-2;s<=2;s++)sensRows.push([null]);
