@@ -108,3 +108,29 @@ test("number parser handles commas, currency symbols and brackets", () => {
   assert.equal(E.parseNumber("(1,234.50)"),-1234.5);
   assert.equal(E.parseNumber("—"),null);
 });
+
+
+test("all manual-entry and Excel-template line items map automatically", () => {
+  for (const [group, items] of Object.entries(E.ITEMS)) {
+    for (const [key, label] of items) {
+      assert.equal(E.mapLabel(label), group + "." + key, "Expected a mapping for " + label);
+    }
+  }
+});
+
+test("Excel wide-format import handles numeric year headers before Line item", () => {
+  // Numeric-looking object keys enumerate before ordinary string keys in JavaScript.
+  const rows = [
+    {"2024": 100, "2025": 120, "Line item": "Revenue"},
+    {"2024": -55, "2025": -62, "Line item": "Cost of goods sold"},
+    {"2024": 25, "2025": 35, "Line item": "Cash & cash equivalents"},
+    {"2024": 30, "2025": 40, "Line item": "Total liabilities & equity"}
+  ];
+  const records = E.recordsFromRows(rows, "Template");
+  const h = E.historyFromRecords(records, {});
+  assert.deepEqual(h.periods, ["2024", "2025"]);
+  assert.equal(h.IS.revenue[1], 120);
+  assert.equal(h.IS.cogs[1], -62);
+  assert.equal(h.BS.cash[1], 40);
+  assert.equal(h.BS.totalLiabEquity[1], 40);
+});
