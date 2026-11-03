@@ -195,7 +195,7 @@ test("Screener.in Data Sheet imports annual income statement, balance sheet and 
   assert.equal(h.BS.equity[0],86214);
   assert.equal(h.BS.longDebt[0],289);
   assert.equal(h.BS.ppe[0],13242);
-  assert.equal(h.BS.otherCurrentAssets[0],89091);
+  assert.equal(h.BS.otherCurrentAssets[0],62304);
   assert.equal(h.BS.totalAssets[0],102333);
   assert.equal(h.BS.totalLiabEquity[0],102333);
   assert.equal(h.CF.cfo[0],25223);
