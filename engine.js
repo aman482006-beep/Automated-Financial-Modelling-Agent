@@ -220,7 +220,7 @@ function parseScreenerDataSheet(matrix){
   const netBlock=get("netblock"),cwip=get("cwip"),investments=get("investments"),otherAssets=get("otherassets");
   const equity=capital===null&&reserves===null?null:(capital||0)+(reserves||0);
   const ppe=netBlock===null&&cwip===null?null:(netBlock||0)+(cwip||0);
-  const otherCurrent=investments===null&&otherAssets===null?null:(investments||0)+(otherAssets||0);
+  const otherCurrent=investments===null&&otherAssets===null?null:(investments||0)+(otherAssets||0)-(get("receivables")||0)-(get("inventory")||0)-(get("cash")||0);
   if(equity!==null)add(period,"Shareholders' equity",equity,"BS.equity");
   if(borrowings!==null)add(period,"Long-term debt",Math.abs(borrowings),"BS.longDebt");
   if(otherLiabilities!==null)add(period,"Other operating liabilities",Math.abs(otherLiabilities),"BS.otherLiabilities");
