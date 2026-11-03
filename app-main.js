@@ -18,6 +18,7 @@ function normaliseProject(p){
   history[group][key]=periods.map((_,i)=>values[i]??null);
  }));
  p.history=history;
+ if(!Array.isArray(p.history.IS.otherIncome))p.history.IS.otherIncome=periods.map(()=>0);
  p.assumptions={...E.clone(E.DEFAULT_ASSUMPTIONS),...(p.assumptions||{})};
  p.dcf={...E.clone(E.DEFAULT_DCF),...(p.dcf||{})};
  p.peers=Array.isArray(p.peers)?p.peers:E.clone(E.DEFAULT_PEERS);
@@ -47,9 +48,9 @@ function table(head,rows){return "<thead><tr>"+head.map((x,i)=>"<th>"+esc(x)+"</
 function renderOverview(){
  const p=project.profile,h=project.history,r=ratios.at(-1)||{},rev=getLatest("IS","revenue"),cagr=h.periods.length>1&&n(h.IS.revenue[0])>0?Math.pow(n(rev)/n(h.IS.revenue[0]),1/(h.periods.length-1))-1:null,last=forecast.at(-1)||{};
  $("#overviewCompany").textContent=p.name||"Untitled project";$("#sideCompany").textContent=p.name||"Untitled project";
- $("#overviewMetrics").innerHTML=[metric("LATEST REVENUE",cash(rev),h.periods.at(-1)||"No period loaded"),metric("EBITDA MARGIN",pct(r.ebitdaMargin),"Latest reported period"),metric("REVENUE CAGR",pct(cagr),h.periods.length>1?h.periods[0]+"–"+h.periods.at(-1):"Not enough data"),metric("FINAL FORECAST EBITDA",cash(last.ebitda),last.year||"No forecast")].join("");
+ const cards=[metric("LATEST REVENUE",cash(rev),h.periods.at(-1)||"No period loaded"),metric("EBITDA MARGIN",pct(r.ebitdaMargin),"Latest reported period"),metric("REVENUE CAGR",pct(cagr),h.periods.length>1?h.periods[0]+"–"+h.periods.at(-1):"Not enough data"),metric("FINAL FORECAST EBITDA",cash(last.ebitda),last.year||"No forecast")];if(Number.isFinite(project.importMeta?.marketCapCrores))cards.push(metric("MARKET CAP",cash(project.importMeta.marketCapCrores),"INR crores · source workbook"));if(Number.isFinite(project.importMeta?.currentPrice))cards.push(metric("CURRENT SHARE PRICE",sym()+fmt(project.importMeta.currentPrice,2),"Source workbook quote"));$("#overviewMetrics").innerHTML=cards.join("");
  $("#overviewEV").textContent=cash(valuation.enterpriseValue);$("#overviewEquity").textContent=cash(valuation.equityValue);$("#overviewPerShare").textContent=Number.isFinite(valuation.perShare)?sym()+fmt(valuation.perShare,2):"—";
- const warnings=E.validateHistory(h).filter(x=>!x.ok).length;$("#modelStatus").textContent=project.rawRecords?.length?"IMPORTED DATA":"SAMPLE PROJECT";$("#modelStatus").className="status-pill"+(warnings?" warning":"");
+ const warnings=E.validateHistory(h).filter(x=>!x.ok).length;$("#modelStatus").textContent=project.importMeta?.source?project.importMeta.source.toUpperCase()+" DATA":project.rawRecords?.length?"IMPORTED DATA":"SAMPLE PROJECT";$("#modelStatus").className="status-pill"+(warnings?" warning":"");
 }
 function renderValidation(){
  const results=E.validateHistory(project.history);
@@ -146,27 +147,96 @@ function renderMapping(){
  $("#mappingTable").innerHTML="<thead><tr><th>Source field</th><th>Values</th><th>Model field</th></tr></thead><tbody>"+labels.map(label=>'<tr><td>'+esc(label)+'</td><td>'+project.rawRecords.filter(r=>r.label===label).length+'</td><td><select data-map="'+esc(label)+'">'+options.replace('value="'+esc(project.mapping[label]||"ignore")+'"','value="'+esc(project.mapping[label]||"ignore")+'" selected')+'</select></td></tr>').join("")+"</tbody>";
  $$("[data-map]").forEach(el=>el.addEventListener("change",()=>{project.mapping[el.dataset.map]=el.value;persist()}));
 }
+
+function seedAssumptionsFromImportedHistory(p,meta){
+ const h=p.history,last=h.periods.length-1,prior=last>0?last-1:-1;
+ const get=(g,k,i=last)=>h[g]?.[k]?.[i]??null;
+ const a=p.assumptions,rev=get("IS","revenue"),prevRev=prior>=0?get("IS","revenue",prior):null;
+ const set=(key,value)=>{if(Number.isFinite(value))a[key]=value;};
+ if(rev>0&&prevRev>0)set("revenueGrowth",rev/prevRev-1);
+ if(rev>0){
+  if(get("IS","grossProfit")!==null)set("grossMargin",get("IS","grossProfit")/rev);
+  if(get("IS","employeeExpenses")!==null)set("employeePct",Math.abs(get("IS","employeeExpenses"))/rev);
+  if(get("IS","otherOpex")!==null)set("otherOpexPct",Math.abs(get("IS","otherOpex"))/rev);
+  if(get("BS","otherCurrentAssets")!==null)set("otherCurrentAssetsPct",Math.max(0,get("BS","otherCurrentAssets"))/rev);
+  if(get("BS","otherLiabilities")!==null)set("otherLiabilitiesPct",Math.max(0,get("BS","otherLiabilities"))/rev);
+  if(get("BS","ar")!==null)set("arDays",Math.max(0,get("BS","ar"))/rev*365);
+  if(get("BS","inventory")!==null&&get("IS","cogs")!==null&&Math.abs(get("IS","cogs"))>0)set("inventoryDays",Math.max(0,get("BS","inventory"))/Math.abs(get("IS","cogs"))*365);
+ }
+ const ppe=get("BS","ppe"),priorPpe=prior>=0?get("BS","ppe",prior):null,da=get("IS","da");
+ if(ppe>0&&priorPpe!==null&&rev>0&&da!==null){
+  set("capexPct",Math.max(0,ppe-priorPpe+Math.abs(da))/rev);
+  p.importNotes=["Capex assumption estimated from the change in net fixed assets plus depreciation; review before relying on the valuation."];
+ }
+ if(ppe>0&&da!==null)set("daPct",Math.abs(da)/ppe);
+ const pbt=get("IS","pbt"),tax=get("IS","tax");
+ if(pbt>0&&tax!==null)set("taxRate",Math.min(.6,Math.max(0,Math.abs(tax)/pbt)));
+ const debt=(get("BS","shortDebt")||0)+(get("BS","longDebt")||0),interest=get("IS","interestExpense");
+ if(debt>0&&interest!==null)set("interestRate",Math.abs(interest)/debt);
+ const ni=get("IS","netIncome");
+ if(ni>0&&Number.isFinite(meta?.dividendAmount))set("dividendPayout",Math.min(1.5,Math.max(0,meta.dividendAmount/ni)));
+ if(meta?.source==="Screener.in")a.annualDebtRepayment=0;
+ return p;
+}
+
 async function importStatements(files){
  if(!files.length)return;
- let records=[];
+ let records=[],screenerImport=null,filesLoaded=0;
  for(const file of files){
   const ext=file.name.split(".").pop().toLowerCase();
-  if(ext==="csv")records=records.concat(E.recordsFromRows(parseCsv(await file.text()),"",file.name));
-  else if(["xlsx","xls"].includes(ext)){
+  if(ext==="csv"){
+   records=records.concat(E.recordsFromRows(parseCsv(await file.text()),"",file.name));
+   filesLoaded++;
+  }else if(["xlsx","xls"].includes(ext)){
    if(!window.XLSX?.utils?.sheet_to_json)throw new Error("Excel reader unavailable. Reload with internet access or upload a CSV file.");
    const workbook=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:true});
-   workbook.SheetNames.forEach(name=>records=records.concat(E.recordsFromRows(XLSX.utils.sheet_to_json(workbook.Sheets[name],{defval:null,raw:true}),name,file.name)));
+   const dataSheetName=workbook.SheetNames.find(name=>E.normaliseLabel(name)==="datasheet");
+   if(dataSheetName){
+    const matrix=XLSX.utils.sheet_to_json(workbook.Sheets[dataSheetName],{header:1,defval:null,raw:true,blankrows:true});
+    const parsed=E.parseScreenerDataSheet(matrix);
+    if(!parsed?.records?.length)throw new Error("A Screener-style Data Sheet was found, but no annual financial rows could be extracted. Please check that the Data Sheet tab is intact.");
+    screenerImport=parsed;
+    records=records.concat(parsed.records);
+   }else{
+    workbook.SheetNames.forEach(name=>records=records.concat(E.recordsFromRows(XLSX.utils.sheet_to_json(workbook.Sheets[name],{defval:null,raw:true}),name,file.name)));
+   }
+   filesLoaded++;
   }else throw new Error("Unsupported file type: "+file.name+". Upload a .csv, .xlsx or .xls file.");
  }
- if(!records.length)throw new Error("No numeric financial values were found. Use the ModelForge Excel template or a CSV with Period / Item / Value columns.");
- project.rawRecords=(project.rawRecords||[]).concat(records);
- Array.from(new Set(project.rawRecords.map(r=>r.label))).forEach(label=>{if(project.mapping[label]===undefined)project.mapping[label]=E.mapLabel(label)||"ignore"});
- project.history=E.historyFromRecords(project.rawRecords,project.mapping);
- project=normaliseProject(project);
+ if(!records.length)throw new Error("No numeric financial values were found. Use the ModelForge template, a Screener.in export, or a CSV with Period / Item / Value columns.");
+ if(screenerImport){
+  const fresh=E.defaultProject();
+  fresh.profile={...fresh.profile,name:screenerImport.companyName||files[0].name.replace(/\.(xlsx|xls)$/i,""),analyst:"Financial Analyst",industry:"",valuationDate:screenerImport.latestDate||fresh.profile.valuationDate,currency:screenerImport.currency||"INR",unit:screenerImport.unit||"crores",frequency:"Annual",sharesOutstanding:screenerImport.sharesOutstandingCrores||100};
+  fresh.history=E.historyFromRecords(records,{});
+  fresh.rawRecords=records;
+  fresh.mapping={};
+  records.forEach(record=>{if(record.mapped)fresh.mapping[record.label]=record.mapped;});
+  fresh.peers=[];
+  fresh.dcf.sharesOutstanding=fresh.profile.sharesOutstanding;
+  if(Number.isFinite(screenerImport.marketCapCrores))fresh.dcf.equityMarketValue=screenerImport.marketCapCrores;
+  fresh.dcf.debtMarketValue=Math.max(0,fresh.history.BS.longDebt.at(-1)||0);
+  fresh.importMeta={source:screenerImport.source,currentPrice:screenerImport.currentPrice,marketCapCrores:screenerImport.marketCapCrores,latestPeriod:screenerImport.latestPeriod,sourceNotes:screenerImport.sourceNotes||[]};
+  project=normaliseProject(fresh);
+  seedAssumptionsFromImportedHistory(project,screenerImport);
+  project.dcf.costOfDebt=project.assumptions.interestRate;
+  renderAssumptions();renderWACC();renderTerminal();
+ }else{
+  const fresh=E.defaultProject();
+  fresh.profile.name=files.length===1?files[0].name.replace(/\.(csv|xlsx|xls)$/i,""):"Imported financial data";
+  fresh.rawRecords=records;
+  fresh.mapping={};
+  Array.from(new Set(records.map(r=>r.label))).forEach(label=>{fresh.mapping[label]=E.mapLabel(label)||"ignore";});
+  fresh.history=E.historyFromRecords(records,fresh.mapping);
+  project=normaliseProject(fresh);
+  renderAssumptions();renderWACC();renderTerminal();
+ }
  renderMapping();renderManualEntry();rebuild();persist();
  const unmapped=Array.from(new Set(records.map(r=>r.label))).filter(label=>!project.mapping[label]||project.mapping[label]==="ignore");
- $("#importStatus").textContent="Imported "+records.length+" values from "+files.length+" file(s). "+(unmapped.length?unmapped.length+" source label(s) need mapping.":"All recognised labels mapped automatically.")+" Review checks before forecasting.";
- toast("Import complete. Review the imported figures and validation checks.");
+ const periodCount=project.history.periods.length,company=project.profile.name||"uploaded company";
+ const note=screenerImport?(screenerImport.sourceNotes||[]).join(" "):"";
+ $("#importStatus").textContent="Imported "+records.length+" values from "+filesLoaded+" file(s). "+(unmapped.length?unmapped.length+" source label(s) need mapping.":"Recognised fields mapped automatically.")+(note?" "+note:"");
+ showPage("overview");
+ toast(company+" loaded: "+periodCount+" historical periods. Dashboard, history, forecast and valuation have been refreshed.");
 }
 function applyMapping(){project.history=E.historyFromRecords(project.rawRecords||[],project.mapping||{});renderManualEntry();rebuild();persist();toast("Source mappings applied.")}
 function loadSample(){const p=E.defaultProject();project=p;syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();persist();$("#importStatus").textContent="Synthetic sample company loaded.";toast("Sample company restored.")}
