@@ -1,0 +1,11 @@
+# Optional Python backend requirements (not used by the GitHub Pages frontend)
+fastapi>=0.110
+uvicorn[standard]>=0.27
+pydantic>=2.6
+pandas>=2.2
+numpy>=1.26
+openpyxl>=3.1
+python-multipart>=0.0.9
+python-dotenv>=1.0
+google-generativeai>=0.5
+pytest>=8.0
