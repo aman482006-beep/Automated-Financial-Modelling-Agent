@@ -208,7 +208,8 @@ function startBlank(){
  project=p;syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();rebuild();renderManualEntry();persist();showPage("data");
  toast("Blank company created. Add your company details and enter financials.");
 }
-\nfunction addPeriod(){const value=prompt("Enter a period label, for example 2026 or Q1 2026:");if(!value||!value.trim())return;const h=project.history;if(h.periods.includes(value.trim())){toast("That period already exists.");return}h.periods.push(value.trim());Object.keys(E.ITEMS).forEach(g=>E.ITEMS[g].forEach(([k])=>h[g][k].push(null)));renderHistory();rebuild();persist()}
+
+function addPeriod(){const value=prompt("Enter a period label, for example 2026 or Q1 2026:");if(!value||!value.trim())return;const h=project.history;if(h.periods.includes(value.trim())){toast("That period already exists.");return}h.periods.push(value.trim());Object.keys(E.ITEMS).forEach(g=>E.ITEMS[g].forEach(([k])=>h[g][k].push(null)));renderHistory();rebuild();persist()}
 function resetAssumptions(){project.assumptions=clone(E.DEFAULT_ASSUMPTIONS);renderAssumptions();rebuild();persist();toast("Forecast assumptions reset.")}
 function bindEvents(){
  syncProfile();
