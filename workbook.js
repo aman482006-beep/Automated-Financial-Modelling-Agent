@@ -213,7 +213,7 @@ function exportWorkbook(project,forecast,valuation,ratios){
  for(let i=0;i<5;i++){const r=opBase+2+i;formulaCell(sens,"A"+r,"='Inputs'!$B$12"+(i-2>=0?"+":"")+(i-2)*.02,project.assumptions.revenueGrowth+(i-2)*.02)}
  const scen=addSheet(wb,"Scenario Calc",[["Operating scenario detail"],["Every scenario is calculated from the editable growth and EBITDA-margin axes on Sensitivity."],["Scenario","Year","Revenue","EBITDA margin","Revenue","Gross profit","COGS","EBITDA","Opening PP&E","D&A","EBIT","NOPAT","D&A add-back","Capex","PP&E","AR","Inventory","Other CA","AP","Other liabilities","NWC","Change NWC","UFCF","Discount factor","PV UFCF"]],[34,13,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,16,14,14,14,14,14]);
  title(scen,25,"Operating scenario calculation detail");let row=4,scenarioCells={};
- const hLast=col(lastHist+1),startRev=E.num(h.IS.revenue.at(-1)),startPPE=E.num(h.BS.ppe.at(-1)),startAR=E.num(h.BS.ar.at(-1)),startInv=E.num(h.BS.inventory.at(-1)),startOca=E.num(h.BS.otherCurrentAssets.at(-1)),startAP=E.num(h.BS.ap.at(-1)),startOl=E.num(h.BS.otherLiabilities.at(-1)),startNwc=startAR+startInv+startOca-startAP-startOl;
+ const hLast=col(lastHist+1);
  for(let i=0;i<5;i++)for(let j=0;j<5;j++){
   const sensGrowthRow=opBase+2+i,sensMarginCol=col(j+2),blockTitle=row;
   scen["A"+row]={v:"Scenario "+(i*5+j+1),t:"s",s:styles.section};row++;
@@ -225,7 +225,7 @@ function exportWorkbook(project,forecast,valuation,ratios){
   let prevRev=null,prevPpe=null,prevNwc=null;
   for(let t=0;t<n;t++){const C=col(t+2),prev=col(t+1),first=t===0;
    const openingRev=first?null:q("Scenario Calc")+"!"+prev+rows.Revenue;
-   const revenueFormula=first?"="+startRev+"*(1+"+growRef+")":"="+openingRev+"*(1+"+growRef+")";
+   const revenueFormula=first?"="+q("Historical IS")+"!$"+hLast+"$5*(1+"+growRef+")":"="+openingRev+"*(1+"+growRef+")";
    formulaCell(scen,C+rows.Revenue,revenueFormula,forecast[t].revenue);
    formulaCell(scen,C+rows["Gross margin"],"="+marginRef+"+'Inputs'!$B$14+'Inputs'!$B$15",baseEbitda);
    formulaCell(scen,C+rows["Gross profit"],"="+C+rows.Revenue+"*"+C+rows["Gross margin"],forecast[t].grossProfit);
@@ -233,7 +233,7 @@ function exportWorkbook(project,forecast,valuation,ratios){
    formulaCell(scen,C+rows["Employee expense"],"=-"+C+rows.Revenue+"*'Inputs'!$B$14",forecast[t].employeeExpenses);
    formulaCell(scen,C+rows["Other opex"],"=-"+C+rows.Revenue+"*'Inputs'!$B$15",forecast[t].otherOpex);
    formulaCell(scen,C+rows.EBITDA,"=SUM("+C+rows["Gross profit"]+","+C+rows["Employee expense"]+","+C+rows["Other opex"]+")",forecast[t].ebitda);
-   formulaCell(scen,C+rows["Opening PP&E"],"="+(first?startPPE:q("Scenario Calc")+"!"+prev+rows["Closing PP&E"]),forecast[t].ppe);
+   formulaCell(scen,C+rows["Opening PP&E"],"="+(first?q("Historical BS")+"!"+hLast+"9":q("Scenario Calc")+"!"+prev+rows["Closing PP&E"]),forecast[t].ppe);
    formulaCell(scen,C+rows.DA,"=-"+C+rows["Opening PP&E"]+"*'Inputs'!$B$16",forecast[t].da);
    formulaCell(scen,C+rows.EBIT,"="+C+rows.EBITDA+"+"+C+rows.DA,forecast[t].ebit);
    formulaCell(scen,C+rows.NOPAT,"="+C+rows.EBIT+"*(1-'Inputs'!$B$17)",forecast[t].ebit*(1-a.taxRate));
@@ -246,7 +246,7 @@ function exportWorkbook(project,forecast,valuation,ratios){
    formulaCell(scen,C+rows["Accounts payable"],"=-"+C+rows.COGS+"*'Inputs'!$B$21/365",forecast[t].ap);
    formulaCell(scen,C+rows["Other operating liabilities"],"="+C+rows.Revenue+"*'Inputs'!$B$23",forecast[t].otherLiabilities);
    formulaCell(scen,C+rows["Net working capital"],"="+C+rows.Receivables+"+"+C+rows.Inventory+"+"+C+rows["Other current assets"]+"-"+C+rows["Accounts payable"]+"-"+C+rows["Other operating liabilities"],forecast[t].ar+forecast[t].inventory+forecast[t].otherCurrentAssets-forecast[t].ap-forecast[t].otherLiabilities);
-   const prevNwcRef=first?String(startNwc):q("Scenario Calc")+"!"+prev+rows["Net working capital"];
+   const prevNwcRef=first?"("+q("Historical BS")+"!"+hLast+"6+"+q("Historical BS")+"!"+hLast+"7+"+q("Historical BS")+"!"+hLast+"8-"+q("Historical BS")+"!"+hLast+"11-"+q("Historical BS")+"!"+hLast+"14)":q("Scenario Calc")+"!"+prev+rows["Net working capital"];
    formulaCell(scen,C+rows["Change in NWC"],"="+C+rows["Net working capital"]+"-"+prevNwcRef,forecast[t].changeNWC);
    formulaCell(scen,C+rows.UFCF,"="+C+rows.NOPAT+"+"+C+rows["D&A add-back"]+"-"+C+rows.Capex+"-"+C+rows["Change in NWC"],forecast[t].ebit*(1-a.taxRate)-forecast[t].da-forecast[t].capex-forecast[t].changeNWC);
    formulaCell(scen,C+rows["Discount factor"],"=1/(1+'Inputs'!$B$41)^"+(t+1),1/Math.pow(valuation.wacc,t+1));
