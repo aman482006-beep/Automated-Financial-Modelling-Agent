@@ -1,55 +1,100 @@
-# ModelForge — Automated Financial Modelling Agent
+# ModelForge — Financial Modelling Workspace
 
-A browser-based financial analyst workstation for historical statement review, integrated forecasts, DCF valuation, trading comparables, sensitivities and workbook export.
+ModelForge is a GitHub Pages-compatible browser application for reviewing historical financial statements, creating a linked forecast, valuing a company, analysing comparable companies and exporting a formula-driven Excel report.
 
-## GitHub Pages preview
+## Preview
 
 https://aman482006-beep.github.io/Automated-Financial-Modelling-Agent/
 
-In GitHub, open **Settings → Pages** and set the publishing source to **GitHub Actions**. The included workflow deploys the static app from `main`. The live URL becomes available after the deployment workflow succeeds.
+The repository uses GitHub Actions for publishing. In Settings → Pages, the publishing source must be GitHub Actions.
 
-## Run locally
+## User workflow
 
-No build step is required. Open `index.html` in a modern browser or run `python -m http.server 8000` and visit `http://localhost:8000`.
+1. Edit the company name, analyst name, industry, valuation date, currency, reporting unit, frequency and shares outstanding.
+2. Upload CSV or Excel statements, or select Load sample company to use the synthetic Aster Industries dataset.
+3. Review source mapping and validation. Unmapped labels can be assigned to standard fields or ignored.
+4. Edit historical values in Historical review. Blue cells in the Excel file are source / assumption inputs.
+5. Change forecast drivers and horizon. The three statements recalculate together.
+6. Enter DCF and WACC assumptions, choose the terminal method, then review the UFCF build and valuation chart.
+7. Enter observed peer data. Sample peers are clearly labelled synthetic.
+8. Export the linked Excel model or CSV report pack. Save and restore a local JSON project file.
 
-## Pages build features
+## Included modules
 
-- Import historical CSV statements and inspect a source data table and mapping review.
-- Historical trend and ratio analysis.
-- Driver-based integrated forecast for income statement, balance sheet and cash flow.
-- Editable operating, tax, working-capital and financing assumptions.
-- CAPM-based cost of equity, WACC and DCF with perpetuity-growth or exit-multiple terminal value.
-- Trading comparables: EV/Revenue, EV/EBITDA, EV/EBIT, P/E and P/B.
-- WACC/growth, WACC/exit multiple and growth/margin sensitivity grids.
-- Grounded local analyst assistant reading the actual active model outputs.
-- XLSX export with historical statements, ratios, assumptions, forecast statements, DCF and comps.
+- Company profile: company name, analyst, industry, valuation date, currency, reporting unit, frequency and shares outstanding.
+- Data intake: multi-file CSV / XLSX / XLS import; wide, long and transposed layouts; standard field mapping; editable historical line items.
+- Validation: balance sheet, cash flow bridge, subtotals and period sequence checks.
+- Historical analysis: growth, margins, ROE, ROA, ROCE, liquidity, leverage, interest coverage, turnover, working capital and FCF.
+- Three-statement forecast: adjustable horizon and drivers for revenue, margins, operating costs, D&A, tax, capex, working capital, interest, debt repayment and dividends.
+- DCF: CAPM cost of equity, market-value capital weights, WACC, forecast UFCF, perpetual-growth or exit-multiple terminal value, enterprise-to-equity bridge and per-share value.
+- Trading comparables: EV/Revenue, EV/EBITDA, EV/EBIT, P/E and P/B with median and average statistics.
+- Sensitivity: WACC / perpetual growth, WACC / exit multiple and revenue-growth / EBITDA-margin scenarios.
+- Model assistant: deterministic responses tied to active model inputs and calculations.
+- Export: formula-linked Excel workbook plus an 11-file CSV report pack.
+- Themes: Light, Navy, Midnight, Emerald, Graphite and Warm paper.
+- Local project handling: localStorage autosave, JSON project download and restore.
 
-## Important deployment limitation
+## Excel model layout
 
-GitHub Pages hosts static files only. It **cannot execute FastAPI, Python, SQLite, or server-side jobs**. This deployment therefore runs calculations in browser JavaScript and stores edits only for the current browser session. The assistant is deterministic/local; it does not call Gemini or another LLM. See `backend/README.md` for a separate backend architecture.
+The workbook includes:
+- Cover: company / analyst information and linked valuation summary.
+- Inputs: blue-font editable assumptions and DCF parameters; formula-derived cost of equity, capital weights and WACC.
+- Historical IS, Historical BS and Historical CF: imported / user-edited source values.
+- Forecast IS, Forecast BS and Forecast CF: formula-linked forecast schedules.
+- Ratios: formula-linked historical calculations.
+- DCF: one row per forecast year, UFCF, discount factors, terminal value, PV, EV, net debt, equity value and value per share.
+- Comparables: editable peer facts and formula-driven multiples.
+- Sensitivity: linked axes and DCF sensitivity formulas.
+- Scenario Calc: detailed calculations for operating scenarios.
+- Checks: forecast and historical reconciliation checks.
 
-Never place an LLM API key in browser code. Deploy a secured FastAPI service separately, store keys in environment variables, restrict CORS, and call it from the frontend over HTTPS.
+Blue cells are editable source data or assumptions. Derived schedules are Excel formulas. Historical reported figures and peer inputs are deliberately editable facts, not formulas. Excel or compatible spreadsheet software recalculates formulas when opened.
 
-## Modelling caveats
+## Included sample dataset
 
-- Demo company financials and peer names are synthetic, not market data or actual issuer disclosures.
-- This compact CSV workflow is wide-format: one `period` / `year` column, and common item names such as Revenue, Sales, Cost of goods sold, cash, accounts receivable and PP&E. The review mapping table is currently a reference mapping view rather than a full editable arbitrary schema mapper.
-- Currency and unit settings are labels; no FX or scale conversion is performed.
-- Quarter labels are preserved, but quarterly seasonality / annualisation is not automatically inferred.
-- Forecast cash is the balancing item in this simplified model. A cash shortfall is flagged; no revolver or automatic debt funding waterfall is implemented.
-- Workbook export currently exports calculated values, not a full formula-linked Excel model. The Python backend notes describe a path for a richer production export.
-- Review imported figures, definitions, mappings and model assumptions before using any output. Not investment advice.
+Aster Industries is synthetic demonstration data. It is not a real company or actual issuer disclosure. Replace it with verified company data before relying on analysis.
 
-## Tests
+## GitHub Pages limitation and disconnected features
 
-Open the deployed app, then run `ModelForge.selfTest()` in the browser developer console. A test runner is also in `tests/model-tests.js`. The GitHub Pages workflow runs `node --check app.js` before publishing.
+GitHub Pages serves static assets only. The deployed app therefore uses JavaScript for calculations and stores project edits in the browser. It does not run FastAPI, SQLite, Python or server-side jobs. Local project files can be downloaded and restored, but this is not a shared multi-user database.
 
-## Files
+The assistant is deterministic and local, not a Gemini / OpenAI LLM integration. A secure LLM requires a separately deployed API with credentials held server-side.
 
-- `index.html` — UI
-- `styles.css` — responsive design
-- `app.js` — deterministic calculation engine and interaction layer
-- `sample-data/aster_industries.csv` — synthetic sample data
-- `docs/formulas.md` — formula definitions and caveats
-- `backend/README.md` — optional backend architecture
-- `tests/model-tests.js` — browser-side calculation test runner
+No live market-data or financial-statement provider is connected. Company filings, shares, market capitalisation, debt values and comparable-company data must be entered from sources you verify. No peer is silently presented as a real issuer.
+
+The Excel export includes formula-linked schedules, but is not a substitute for analyst review. Forecast debt funding is simplified: scheduled repayments are modelled and negative cash is flagged as a funding need; a revolver draw / paydown waterfall is not implemented.
+
+Currency and reporting unit are metadata. No automatic FX or scale conversion is performed. Quarterly labels can be imported, but seasonality and annualisation are not inferred.
+
+## Local development
+
+A static server is sufficient:
+
+~~~bash
+python -m http.server 8000
+~~~
+
+Open http://localhost:8000.
+
+For automated tests:
+
+~~~bash
+npm install
+npm test
+~~~
+
+Tests verify historical reconciliation, cash flow bridges, ratios, three-statement linkages, working-capital and balance-sheet roll-forward, WACC, DCF, comparables, sensitivities, CSV mapping and actual XLSX generation with formula cells.
+
+## Source layout
+
+- index.html — browser UI and script loading
+- styles.css — responsive interface and theme palette
+- engine.js — deterministic financial calculation engine
+- app-main.js — navigation, state, imports, editing and exports
+- workbook.js — formula-linked Excel workbook generator
+- sample-data/aster_industries.csv — synthetic statement input
+- docs/formulas.md — formula reference
+- backend/README.md — separately deployed API architecture notes
+- tests/engine.test.cjs — financial calculation tests
+- tests/workbook.test.cjs — XLSX export and formula integrity test
+- .github/workflows/pages.yml — test gate and Pages deployment
