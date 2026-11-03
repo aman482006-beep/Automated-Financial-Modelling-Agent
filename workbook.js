@@ -296,5 +296,58 @@ function exportWorkbook(project,forecast,valuation,ratios){
  X.writeFile(wb,filename,{cellStyles:true});
  return filename;
 }
-root.ModelWorkbook={exportWorkbook};
+
+function downloadDataTemplate(){
+ if(!X||!E)throw new Error("Excel template generator is unavailable. Reload the page with internet access.");
+ const wb=X.utils.book_new(),periods=["2022","2023","2024","2025","2026"];
+ const instructions=[
+  ["MODELFORGE | HISTORICAL FINANCIAL DATA TEMPLATE"],
+  ["HOW TO USE THIS WORKBOOK"],
+  ["1. Enter historical figures in the blank blue cells on the three statement tabs."],
+  ["2. Keep every Line item label in column A unchanged so ModelForge can map it automatically."],
+  ["3. Each year has its own column. You may replace 2022–2026 with your reporting years (use four-digit years)."],
+  ["4. Enter expenses and cash outflows as negative numbers. Enter income, assets and liabilities as positive numbers."],
+  ["5. Use the same currency and reporting scale in every tab. Set currency and unit in the ModelForge website."],
+  ["6. Leave unavailable values blank. Do not type dashes, text, formulas or totals into blank input cells."],
+  ["7. Do not insert a title row above the Line item header row or rename the worksheet tabs."],
+  ["8. Save as .xlsx, then upload it in ModelForge → Enter data → Import a financial statement."],
+  ["WHAT HAPPENS NEXT"],
+  ["ModelForge reads all three statement tabs, maps the standard line items and adds the imported reporting years to your project."],
+  ["Review the imported data and validation report before using the forecast or valuation."],
+  ["Currency and reporting unit are metadata; the website does not automatically convert currencies or scales."]
+ ];
+ const info=X.utils.aoa_to_sheet(instructions);
+ info["!cols"]=[{wch:112}];
+ info["!rows"]=instructions.map((_,i)=>({hpt:i===0?28:22}));
+ info["A1"].s=styles.title;
+ [2,11].forEach(r=>{if(info["A"+r])info["A"+r].s=styles.section});
+ for(let r=3;r<=instructions.length;r++)if(info["A"+r]&&r!==11)info["A"+r].s=styles.text;
+ X.utils.book_append_sheet(wb,info,"Instructions");
+ const sheets=[["Income Statement","IS"],["Balance Sheet","BS"],["Cash Flow","CF"]];
+ sheets.forEach(([name,group])=>{
+  const items=E.ITEMS[group],rows=[["Line item",...periods],...items.map(([,label])=>[label,...periods.map(()=>"")])];
+  const ws=X.utils.aoa_to_sheet(rows);
+  ws["!cols"]=[{wch:36},...periods.map(()=>({wch:16}))];
+  ws["!views"]=[{state:"frozen",xSplit:1,ySplit:1,topLeftCell:"B2",activePane:"bottomRight"}];
+  ws["!autofilter"]={ref:"A1:"+col(periods.length+1)+(items.length+1)};
+  ws["!rows"]=[{hpt:24}];
+  for(let c=1;c<=periods.length+1;c++)setStyle(ws,ref(c,1),styles.header);
+  for(let r=2;r<=items.length+1;r++){
+   setStyle(ws,"A"+r,styles.text);
+   for(let c=2;c<=periods.length+1;c++){
+    const cell=ref(c,r);
+    if(!ws[cell])ws[cell]={t:"s",v:""};
+    ws[cell].s=styles.input;
+    ws[cell].z="#,##0.0;[Red](#,##0.0);-";
+   }
+  }
+  extendRef(ws,items.length+1,periods.length+1);
+  X.utils.book_append_sheet(wb,ws,name);
+ });
+ wb.Props={Title:"ModelForge Historical Financial Data Template",Subject:"Import-ready financial statement input template",Author:"ModelForge"};
+ const filename="ModelForge_Financial_Data_Template.xlsx";
+ X.writeFile(wb,filename,{cellStyles:true,compression:true});
+ return filename;
+}
+root.ModelWorkbook={exportWorkbook,downloadDataTemplate};
 })(window);
