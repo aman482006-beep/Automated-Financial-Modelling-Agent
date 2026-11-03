@@ -30,7 +30,7 @@ The repository uses GitHub Actions for publishing. In Settings → Pages, the pu
 - Trading comparables: EV/Revenue, EV/EBITDA, EV/EBIT, P/E and P/B with median and average statistics.
 - Sensitivity: WACC / perpetual growth, WACC / exit multiple and revenue-growth / EBITDA-margin scenarios.
 - Model assistant: deterministic responses tied to active model inputs and calculations.
-- Export: formula-linked Excel workbook plus an 11-file CSV report pack.
+- Export: formula-linked Excel workbook plus a 12-file CSV report pack.
 - Themes: Light, Navy, Midnight, Emerald, Graphite and Warm paper.
 - Local project handling: localStorage autosave, JSON project download and restore.
 
