@@ -31,7 +31,7 @@ test("Excel report generates formula-linked statement, DCF, comps and sensitivit
   };
   formula("Forecast IS","B5","Historical IS");
   formula("Forecast IS","B8","Inputs");
-  formula("Forecast BS","B17","Forecast BS");
+  formula("Forecast BS","B17","B10-B16");
   formula("Forecast CF","B5","Forecast IS");
   formula("DCF","B3","Inputs");
   formula("DCF","B15","Perpetuity growth");
