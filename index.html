@@ -64,7 +64,7 @@
         </article>
         <article class="panel"><div class="panel-heading"><div><h2>Source field mapping</h2><p>Change how imported labels map to standard financial statement items. Unmapped rows are not discarded.</p></div><button type="button" class="btn btn-outline" id="applyMapping">Apply mapping</button></div><div class="table-scroll"><table id="mappingTable"></table></div></article>
         <article class="panel"><div class="panel-heading"><div><h2>Validation report</h2><p>Review warnings before using the data in a forecast or valuation.</p></div><button type="button" class="btn btn-outline" id="runChecks">↻ Run checks</button></div><div id="validationList" class="validation-list"></div></article>
-        <div class="panel-actions"><button type="button" class="btn btn-outline" id="saveProject">↓ Save project file</button><label class="btn btn-outline file-button">Load project file<input id="loadProjectFile" type="file" accept=".json,application/json"></label><span class="muted">Project files stay on your device unless you choose to share them.</span></div>
+        <div class="panel-actions"><button type="button" class="btn btn-primary" id="csvExport">↓ CSV report pack</button><button type="button" class="btn btn-outline" id="saveProject">↓ Save project file</button><label class="btn btn-outline file-button">Load project file<input id="loadProjectFile" type="file" accept=".json,application/json"></label><span class="muted">Project files stay on your device unless you choose to share them.</span></div>
       </section>
 
       <section class="page" id="page-history">
@@ -120,5 +120,6 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="./engine.js"></script>
-<script src="./app.js"></script>
+<script src="./workbook.js"></script>
+<script src="./app-main.js"></script>
 </body></html>
