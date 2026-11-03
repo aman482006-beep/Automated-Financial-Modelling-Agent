@@ -28,7 +28,7 @@ function addHistorical(wb,titleText,periods,group,items){
  const rows=[[titleText],["Source values · reported / imported"],["Source currency and unit are defined on the Inputs sheet."],["Line item"].concat(periods)];
  items.forEach(([key,label])=>rows.push([label].concat(periods.map((p,i)=>group[key]?.[i]??null))));
  const ws=addSheet(wb,titleText,rows,[34].concat(periods.map(()=>14)));title(ws,periods.length+1,titleText);headerRow(ws,4,periods.length+1);
- for(let r=5;r<5+items.length;r++)for(let c=2;c<=periods.length+1;c++)setStyle(ws,ref(c,r),styles.input);
+ for(let r=5;r<5+items.length;r++)for(let c=2;c<=periods.length+1;c++){setStyle(ws,ref(c,r),styles.input);setFormat(ws,ref(c,r),"#,##0.0;[Red](#,##0.0);-");}
  return ws;
 }
 function exportWorkbook(project,forecast,valuation,ratios){
@@ -114,7 +114,7 @@ function exportWorkbook(project,forecast,valuation,ratios){
   formulaCell(fbs,C+16,"=SUM("+C+"11:"+C+"15)",forecast[j].totalLiabEquity);
   formulaCell(fbs,C+17,"="+C+"10-"+C+"16",forecast[j].check);
  }
- for(let j=0;j<n;j++){const C=col(j+2);setFormat(fis,C+"6","0.0%");}
+ for(let j=0;j<n;j++){const C=col(j+2);for(let r=5;r<=17;r++)setFormat(fis,C+r,"#,##0.0;[Red](#,##0.0);-");setFormat(fis,C+"6","0.0%");for(let r=5;r<=17;r++)setFormat(fbs,C+r,"#,##0.0;[Red](#,##0.0);-");for(let r=5;r<=15;r++)setFormat(fcf,C+r,"#,##0.0;[Red](#,##0.0);-");}
  // Formula-linked historical ratios.
  const ratioNames=[["Revenue growth","revenueGrowth"],["Gross margin","grossMargin"],["EBITDA margin","ebitdaMargin"],["EBIT margin","ebitMargin"],["Net margin","netMargin"],["ROE","roe"],["ROA","roa"],["ROCE","roce"],["Current ratio","currentRatio"],["Quick ratio","quickRatio"],["Debt / equity","debtEquity"],["Interest coverage","interestCoverage"],["Asset turnover","assetTurnover"],["Working capital","workingCapital"],["Free cash flow","freeCashFlow"]];
  const ratioRows=[["Historical ratios"],["Calculated formulas link to historical statement inputs."],["Metric"].concat(periods)];
@@ -186,7 +186,7 @@ function exportWorkbook(project,forecast,valuation,ratios){
  compsRows.push(["Median","","","","","","","","",null,null,null,null,null]);compsRows.push(["Average","","","","","","","","",null,null,null,null,null]);
  const comps=addSheet(wb,"Comparables",compsRows,[32,12,14,14,14,14,14,14,14,14,14,14,12,12]);title(comps,14,"Trading comparables");
  const peerEnd=peerStart+project.peers.length-1,medianRow=peerEnd+1,averageRow=peerEnd+2;
- project.peers.forEach((peer,i)=>{const r=peerStart+i;for(let c=1;c<=9;c++)setStyle(comps,ref(c,r),styles.input);formulaCell(comps,"J"+r,"=IFERROR(C"+r+"/D"+r+",NA())",E.peerMultiples(peer).evRevenue||0);formulaCell(comps,"K"+r,"=IFERROR(C"+r+"/E"+r+",NA())",E.peerMultiples(peer).evEbitda||0);formulaCell(comps,"L"+r,"=IFERROR(C"+r+"/F"+r+",NA())",E.peerMultiples(peer).evEbit||0);formulaCell(comps,"M"+r,"=IFERROR(H"+r+"/G"+r+",NA())",E.peerMultiples(peer).pe||0);formulaCell(comps,"N"+r,"=IFERROR(H"+r+"/I"+r+",NA())",E.peerMultiples(peer).pb||0)});
+ project.peers.forEach((peer,i)=>{const r=peerStart+i;for(let c=1;c<=9;c++)setStyle(comps,ref(c,r),styles.input);for(let c=3;c<=9;c++)setFormat(comps,ref(c,r),"#,##0.0;[Red](#,##0.0);-");formulaCell(comps,"J"+r,"=IFERROR(C"+r+"/D"+r+",NA())",E.peerMultiples(peer).evRevenue||0);formulaCell(comps,"K"+r,"=IFERROR(C"+r+"/E"+r+",NA())",E.peerMultiples(peer).evEbitda||0);formulaCell(comps,"L"+r,"=IFERROR(C"+r+"/F"+r+",NA())",E.peerMultiples(peer).evEbit||0);formulaCell(comps,"M"+r,"=IFERROR(H"+r+"/G"+r+",NA())",E.peerMultiples(peer).pe||0);formulaCell(comps,"N"+r,"=IFERROR(H"+r+"/I"+r+",NA())",E.peerMultiples(peer).pb||0);["J","K","L","M","N"].forEach(C=>setFormat(comps,C+r,"0.0x"))});
  ["J","K","L","M","N"].forEach(C=>{formulaCell(comps,C+medianRow,"=IFERROR(MEDIAN("+C+peerStart+":"+C+peerEnd+"),NA())",0);formulaCell(comps,C+averageRow,"=IFERROR(AVERAGE("+C+peerStart+":"+C+peerEnd+"),NA())",0)});
  comps["A"+medianRow]={v:"Median",t:"s"};comps["A"+averageRow]={v:"Average",t:"s"};
  const impRow=averageRow+2;comps["A"+impRow]={v:"Target implied enterprise value",t:"s"};comps["A"+(impRow+1)]={v:"EV / Revenue",t:"s"};comps["A"+(impRow+2)]={v:"EV / EBITDA",t:"s"};comps["A"+(impRow+3)]={v:"EV / EBIT",t:"s"};
