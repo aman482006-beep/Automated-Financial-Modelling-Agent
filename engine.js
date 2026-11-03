@@ -84,9 +84,9 @@ function recordsFromRows(rows,sheetName="",fileName=""){
  const periodText=value=>{
   if(value instanceof Date)return String(value.getFullYear());
   const s=String(value??"").trim();
-  const q=s.match(/Q[1-4][ -]?(?:19|20)\\d{2}/i);
-  if(q)return q[0].replace(/([Qq][1-4])[ -]?((?:19|20)\\d{2})/,"$1 $2").toUpperCase();
-  const y=s.match(/(?:19|20)\\d{2}/);
+  const q=s.match(/Q[1-4][ -]?(?:19|20)\d{2}/i);
+  if(q)return q[0].replace(/([Qq][1-4])[ -]?((?:19|20)\d{2})/,"$1 $2").toUpperCase();
+  const y=s.match(/(?:19|20)\d{2}/);
   return y?y[0]:s;
  };
  const out=[];
@@ -108,7 +108,7 @@ function recordsFromRows(rows,sheetName="",fileName=""){
   });
   return out;
  }
- const periodColumns=keys.filter(key=>/^(?:19|20)\\d{2}$|^Q[1-4][ -]?(?:19|20)\\d{2}$/i.test(String(key).trim()));
+ const periodColumns=keys.filter(key=>/^(?:19|20)\d{2}$|^Q[1-4][ -]?(?:19|20)\d{2}$/i.test(String(key).trim()));
  const labelKey=itemKey||keys.find(key=>!periodColumns.includes(key));
  if(labelKey&&periodColumns.length){
   rows.forEach(row=>periodColumns.forEach(periodKey=>{
