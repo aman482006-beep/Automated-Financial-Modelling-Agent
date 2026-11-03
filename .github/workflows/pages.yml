@@ -26,8 +26,10 @@ jobs:
           node --check engine.js
           node --check workbook.js
           node --check app-main.js
-      - name: Run deterministic financial model tests
-        run: node --test tests/engine.test.cjs
+      - name: Install workbook test dependency
+        run: npm install --no-audit --no-fund
+      - name: Run financial engine and Excel formula tests
+        run: npm test
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
