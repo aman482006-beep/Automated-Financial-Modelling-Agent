@@ -12,7 +12,7 @@ function fmt(v,d=1){return E.formatNumber(Number(v),d)}
 function pct(v,d=1){return Number.isFinite(v)?(v*100).toFixed(d)+"%":"—"}
 function sym(){return symbols[project.profile.currency]||project.profile.currency+" "}
 function cash(v,d=1){return Number.isFinite(v)?sym()+fmt(v,d):"—"}
-function showPage(page){const id="page-"+page;if(!$("#"+id))return;$$(".page").forEach(x=>x.classList.toggle("active",x.id===id));$$(".nav-btn").forEach(x=>{const active=x.dataset.page===page;x.classList.toggle("active",active);if(active)x.setAttribute("aria-current","page");else x.removeAttribute("aria-current")});const labels={overview:"Overview",data:"Company & data",history:"Historical review",model:"Forecast model",dcf:"DCF valuation",comps:"Comparables",sensitivity:"Sensitivities",assistant:"Model assistant"};$("#pageTitle").textContent=labels[page]||page;window.scrollTo({top:0,behavior:"smooth"});if(["overview","history","dcf"].includes(page))drawCharts()}
+function showPage(page){const id="page-"+page;if(!$("#"+id))return;$$(".page").forEach(x=>x.classList.toggle("active",x.id===id));$$(".nav-btn").forEach(x=>{const active=x.dataset.page===page;x.classList.toggle("active",active);if(active)x.setAttribute("aria-current","page");else x.removeAttribute("aria-current")});const labels={overview:"Overview",data:"Enter data",history:"History",model:"Forecast",dcf:"DCF",comps:"Peers",sensitivity:"Scenarios",assistant:"Assistant"};$("#pageTitle").textContent=labels[page]||page;window.scrollTo({top:0,behavior:"smooth"});if(["overview","history","dcf"].includes(page))drawCharts()}
 document.addEventListener("click",e=>{const b=e.target.closest("[data-page]");if(b){e.preventDefault();showPage(b.dataset.page)}});
 function syncProfile(){const p=project.profile;$("#companyName").value=p.name||"";$("#analystName").value=p.analyst||"";$("#industry").value=p.industry||"";$("#valuationDate").value=p.valuationDate||"";$("#currency").value=p.currency||"INR";$("#unit").value=p.unit||"millions";$("#frequency").value=p.frequency||"Annual";$("#shares").value=p.sharesOutstanding??100;$("#sideCompany").textContent=p.name||"Untitled project";$("#overviewCompany").textContent=p.name||"Untitled project";$("#themeSelect").value=project.theme||"light";document.body.dataset.theme=project.theme||"light"}
 function getLatest(g,k){const arr=project.history[g]?.[k]||[];const v=arr[arr.length-1];return v===null?null:n(v)}
@@ -136,10 +136,10 @@ async function importStatements(files){
  for(const file of files){const ext=file.name.split(".").pop().toLowerCase();if(ext==="csv")records=records.concat(recordsFromRows(parseCsv(await file.text()),"",file.name));else if(["xlsx","xls"].includes(ext)){if(!window.XLSX)throw new Error("Excel reader unavailable. Try CSV or reload with internet access.");const wb=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:true});wb.SheetNames.forEach(name=>records=records.concat(recordsFromRows(XLSX.utils.sheet_to_json(wb.Sheets[name],{defval:null,raw:true}),name,file.name)))}}
  if(!records.length)throw new Error("No valid financial rows found. Use Period / Item / Value or Period / Revenue / EBITDA-style columns.");
  project.rawRecords=(project.rawRecords||[]).concat(records);Array.from(new Set(project.rawRecords.map(r=>r.label))).forEach(label=>{if(project.mapping[label]===undefined)project.mapping[label]=E.mapLabel(label)||"ignore"});
- project.history=E.historyFromRecords(project.rawRecords,project.mapping);renderMapping();rebuild();persist();$("#importStatus").textContent="Imported "+records.length+" line-item values from "+files.length+" file(s). Review mappings and checks.";toast("Import complete. Review data mapping and validation.");
+ project.history=E.historyFromRecords(project.rawRecords,project.mapping);renderMapping();renderManualEntry();rebuild();persist();$("#importStatus").textContent="Imported "+records.length+" line-item values from "+files.length+" file(s). Review mappings and checks.";toast("Import complete. Review data mapping and validation.");
 }
-function applyMapping(){project.history=E.historyFromRecords(project.rawRecords||[],project.mapping||{});rebuild();persist();toast("Source mappings applied.")}
-function loadSample(){const p=E.defaultProject();project=p;syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();rebuild();persist();$("#importStatus").textContent="Synthetic sample company loaded.";toast("Sample company restored.")}
+function applyMapping(){project.history=E.historyFromRecords(project.rawRecords||[],project.mapping||{});renderManualEntry();rebuild();persist();toast("Source mappings applied.")}
+function loadSample(){const p=E.defaultProject();project=p;syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();persist();$("#importStatus").textContent="Synthetic sample company loaded.";toast("Sample company restored.")}
 function csvEscape(v){const s=v===null||v===undefined?"":String(v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}
 function csvText(rows){return rows.map(r=>r.map(csvEscape).join(",")).join("\r\n")}
 function rowsForHistory(g){const h=project.history;return [["Line item"].concat(h.periods),...E.ITEMS[g].map(([k,l])=>[l].concat(h.periods.map((_,i)=>h[g][k][i])))]}
@@ -162,8 +162,53 @@ async function exportCsvPack(){
  const blob=await z.generateAsync({type:"blob"});downloadBlob((p.name||"Company").replace(/[^a-z0-9]+/gi,"_")+"_Financial_Report_CSV_Pack.zip",blob);toast("CSV report pack downloaded.");
 }
 function saveProjectFile(){const blob=new Blob([JSON.stringify(project,null,2)],{type:"application/json"});downloadBlob((project.profile.name||"ModelForge").replace(/[^a-z0-9]+/gi,"_")+"_project.json",blob);toast("Project backup downloaded.")}
-function loadProjectFile(file){const reader=new FileReader();reader.onload=()=>{try{const p=JSON.parse(reader.result);if(!p.profile||!p.history||!p.assumptions||!p.dcf)throw new Error("Not a ModelForge project file.");project=p;syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();rebuild();persist();toast("Project loaded.")}catch(e){toast("Could not load project: "+e.message)}};reader.readAsText(file)}
-function addPeriod(){const value=prompt("Enter a period label, for example 2026 or Q1 2026:");if(!value||!value.trim())return;const h=project.history;if(h.periods.includes(value.trim())){toast("That period already exists.");return}h.periods.push(value.trim());Object.keys(E.ITEMS).forEach(g=>E.ITEMS[g].forEach(([k])=>h[g][k].push(null)));renderHistory();rebuild();persist()}
+function loadProjectFile(file){const reader=new FileReader();reader.onload=()=>{try{const p=JSON.parse(reader.result);if(!p.profile||!p.history||!p.assumptions||!p.dcf)throw new Error("Not a ModelForge project file.");project=p;syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();persist();toast("Project loaded.")}catch(e){toast("Could not load project: "+e.message)}};reader.readAsText(file)}
+
+function renderManualEntry(){
+ const periodSelect=$("#manualPeriodSelect"),statementSelect=$("#manualStatementSelect");
+ if(!periodSelect||!statementSelect)return;
+ const periods=project.history.periods||[],previous=periodSelect.value;
+ periodSelect.innerHTML=periods.map(p=>'<option value="'+esc(p)+'">'+esc(p)+'</option>').join("");
+ periodSelect.value=periods.includes(previous)?previous:(periods.at(-1)||"");
+ const group=statementSelect.value||"IS",index=periods.indexOf(periodSelect.value);
+ $("#manualEntryGrid").innerHTML=(E.ITEMS[group]||[]).map(([key,label])=>{
+  const value=index>=0?project.history[group][key][index]:null;
+  return '<label class="manual-field">'+esc(label)+'<input type="number" step="any" data-manual-key="'+esc(key)+'" value="'+(value===null||value===undefined?"":esc(value))+'" placeholder="Enter amount"></label>';
+ }).join("");
+ $("#manualEntryStatus").textContent=index>=0?"Editing "+periodSelect.value+" · "+(project.profile.currency||"INR")+" "+(project.profile.unit||"millions"):"Add a period to start entering data.";
+}
+function addManualPeriod(){
+ const input=$("#newManualPeriod"),value=input.value.trim();
+ if(!value){toast("Enter a year or period first.");input.focus();return}
+ const h=project.history;
+ if(!h.periods.includes(value)){
+  h.periods.push(value);
+  Object.keys(E.ITEMS).forEach(g=>E.ITEMS[g].forEach(([key])=>h[g][key].push(null)));
+ }
+ $("#manualPeriodSelect").value=value;input.value="";
+ renderManualEntry();rebuild();persist();toast("Period "+value+" added.");
+}
+function saveManualEntry(){
+ const group=$("#manualStatementSelect").value,period=$("#manualPeriodSelect").value,index=project.history.periods.indexOf(period);
+ if(index<0){toast("Add a period before saving figures.");return}
+ let entered=0;
+ $("#manualEntryGrid [data-manual-key]").forEach(el=>{
+  const value=E.parseNumber(el.value);
+  project.history[group][el.dataset.manualKey][index]=value;
+  if(value!==null)entered++;
+ });
+ rebuild();renderManualEntry();persist();
+ $("#manualEntryStatus").textContent=entered+" figures saved for "+period+".";
+ toast("Financial figures saved.");
+}
+function startBlank(){
+ const p=E.defaultProject();
+ p.profile={name:"",analyst:"",industry:"",valuationDate:new Date().toISOString().slice(0,10),currency:"INR",unit:"millions",frequency:"Annual",sharesOutstanding:100};
+ p.history=E.blankHistory(["2025"]);p.peers=[];p.rawRecords=[];p.mapping={};
+ project=p;syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();rebuild();renderManualEntry();persist();showPage("data");
+ toast("Blank company created. Add your company details and enter financials.");
+}
+\nfunction addPeriod(){const value=prompt("Enter a period label, for example 2026 or Q1 2026:");if(!value||!value.trim())return;const h=project.history;if(h.periods.includes(value.trim())){toast("That period already exists.");return}h.periods.push(value.trim());Object.keys(E.ITEMS).forEach(g=>E.ITEMS[g].forEach(([k])=>h[g][k].push(null)));renderHistory();rebuild();persist()}
 function resetAssumptions(){project.assumptions=clone(E.DEFAULT_ASSUMPTIONS);renderAssumptions();rebuild();persist();toast("Forecast assumptions reset.")}
 function bindEvents(){
  syncProfile();
@@ -171,6 +216,12 @@ function bindEvents(){
  Object.entries(pfields).forEach(([id,key])=>$("#"+id).addEventListener("change",e=>{project.profile[key]=key==="sharesOutstanding"?n(e.target.value):e.target.value;rebuild();renderAssumptions();renderWACC();persist()}));
  $("#themeSelect").addEventListener("change",e=>{project.theme=e.target.value;document.body.dataset.theme=project.theme;persist();drawCharts()});
  $("#historyStatement").addEventListener("change",renderHistoryEditor);
+ $("#manualPeriodSelect").addEventListener("change",renderManualEntry);
+ $("#manualStatementSelect").addEventListener("change",renderManualEntry);
+ $("#addManualPeriod").addEventListener("click",addManualPeriod);
+ $("#saveManualEntry").addEventListener("click",saveManualEntry);
+ $("#startBlank").addEventListener("click",startBlank);
+ $("#openImport").addEventListener("click",()=>{showPage("data");$("#importPanel").scrollIntoView({behavior:"smooth",block:"start"})});
  $("#historyEditor").addEventListener("change",e=>{const el=e.target.closest("[data-hist-group]");if(!el)return;project.history[el.dataset.histGroup][el.dataset.histKey][n(el.dataset.histIndex)]=E.parseNumber(el.value);rebuild();persist()});
  $("#addPeriod").addEventListener("click",addPeriod);
  $("#forecastYears").addEventListener("change",e=>{project.forecastYears=n(e.target.value);rebuild();persist()});
@@ -199,7 +250,7 @@ function bindEvents(){
  $("#resetDemo").addEventListener("click",()=>{if(confirm("Reset all changes and restore the sample project?"))loadSample()});
 }
 function init(){
- bindEvents();renderAssumptions();renderWACC();renderTerminal();renderMapping();rebuild();showPage("overview");
+ bindEvents();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();showPage("overview");
  window.addEventListener("resize",drawCharts);
  window.ModelForge={getProject:()=>project,getForecast:()=>forecast,getValuation:()=>valuation,selfTest:()=>E.validateHistory(project.history)};
 }
