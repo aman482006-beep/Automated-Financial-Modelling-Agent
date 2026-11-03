@@ -8,6 +8,7 @@ function q(sheet){return "'"+sheet.replace(/'/g,"''")+"'"}
 function fcell(ws,cell,formula,value){const raw=String(formula??"");ws[cell]={t:"n",f:raw.startsWith("=")?raw.slice(1):raw,v:Number.isFinite(value)?value:0};}
 function setStyle(ws,cell,style){if(ws[cell])ws[cell].s=style}
 function setFormat(ws,cell,format){if(ws[cell])ws[cell].z=format;}
+function extendRef(ws,lastRow,lastCol){const range=ws["!ref"]?X.utils.decode_range(ws["!ref"]):{s:{r:0,c:0},e:{r:0,c:0}};range.e.r=Math.max(range.e.r,lastRow-1);range.e.c=Math.max(range.e.c,lastCol-1);ws["!ref"]=X.utils.encode_range(range);}
 const styles={
  title:{font:{name:"Aptos Display",sz:16,bold:true,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"14263F"}},alignment:{vertical:"center"}},
  section:{font:{name:"Aptos",sz:10,bold:true,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"2E5F9E"}}},
@@ -62,6 +63,7 @@ function exportWorkbook(project,forecast,valuation,ratios){
  [12,13,14,15,16,17,18,22,23,25,26,28,29,31,36].forEach(r=>setFormat(inputs,"B"+r,"0.0%"));
  setFormat(inputs,"B30","0.00x");setFormat(inputs,"B37","0.0x");setFormat(inputs,"B38","0.0%");setFormat(inputs,"B39","0.0%");setFormat(inputs,"B40","0.0%");setFormat(inputs,"B41","0.0%");
 
+ extendRef(inputs,41,2);
  inputs["!autofilter"]={ref:"A11:B26"};
  // Forecast worksheet shells.
  function forecastSheet(name,rows){const arr=[ [name],["All projected values are formulas linked to Inputs and the adjacent statement schedules."],["Currency / unit",p.currency+" / "+p.unit],["Line item"].concat(forecast.map(x=>x.year)) ];rows.forEach(label=>arr.push([label]));const ws=addSheet(wb,name,arr,[34].concat(forecast.map(()=>14)));title(ws,n+1,name);headerRow(ws,4,n+1);return ws;}
@@ -182,6 +184,7 @@ function exportWorkbook(project,forecast,valuation,ratios){
  formulaCell(dcfSheet,"B"+(terminalRow+6),"='Inputs'!$B$34",d.sharesOutstanding);
  formulaCell(dcfSheet,"B"+(terminalRow+7),"=IFERROR(B"+(terminalRow+5)+"/B"+(terminalRow+6)+",NA())",valuation.perShare||0);
  headerRow(dcfSheet,8,9);styleData(dcfSheet,9,lastDcf,9);
+ extendRef(dcfSheet,terminalRow+7,9);
  // Comparables: entered peer facts are blue; every multiple and summary is formula-driven.
  const compsRows=[["Trading comparables"],["Synthetic labels are sample data only; replace with sourced peer values."],["Company","Synthetic?","EV","Revenue","EBITDA","EBIT","Net income","Market cap","Book equity","EV / Revenue","EV / EBITDA","EV / EBIT","P / E","P / Book"]];
  const peerStart=4;
@@ -197,6 +200,7 @@ function exportWorkbook(project,forecast,valuation,ratios){
  formulaCell(comps,"B"+(impRow+2),"=K"+medianRow+"*"+q("Historical IS")+"!"+histLast+"10",null);
  formulaCell(comps,"B"+(impRow+3),"=L"+medianRow+"*"+q("Historical IS")+"!"+histLast+"12",null);
  headerRow(comps,3,14);
+ extendRef(comps,impRow+3,14);
  const dcfAt=(rate,method,growth,multiple)=>{
   const flows=forecast.map(x=>x.ebit*(1-a.taxRate)-x.da-x.capex-x.changeNWC);
   const pv=flows.reduce((sum,x,i)=>sum+x/Math.pow(1+rate,i+1),0),lastFlow=flows.at(-1)||0,lastForecast=forecast.at(-1)||{ebitda:0};
@@ -264,6 +268,7 @@ function exportWorkbook(project,forecast,valuation,ratios){
   scen["A"+row]={v:"PV terminal value",t:"s"};formulaCell(scen,"B"+row,"="+tvRef+"*"+lastFc+rows["Discount factor"],terminalValue/Math.pow(1+valuation.wacc,n));const pvtvRef="B"+row;row++;
   scen["A"+row]={v:"Scenario enterprise value",t:"s"};formulaCell(scen,"B"+row,"=SUM("+col(2)+rows["PV of UFCF"]+":"+lastFc+rows["PV of UFCF"]+")+"+pvtvRef,0);scenarioCells[i+","+j]="B"+row;row+=2;
  }
+ extendRef(scen,row,25);
  // Tie operating scenario grid to the detailed scenario formulas.
  for(let i=0;i<5;i++)for(let j=0;j<5;j++){const C=col(j+2),r=opBase+2+i,cell=scenarioCells[i+","+j];const value=E.operatingScenario(h,{...a,revenueGrowth:a.revenueGrowth+(i-2)*.02,grossMargin:baseEbitda+(j-2)*.02+a.employeePct+a.otherOpexPct},project.forecastYears,d);formulaCell(sens,C+r,"="+q("Scenario Calc")+"!"+cell,value||0)}
  headerRow(sens,4,6);headerRow(sens,start2+1,6);headerRow(sens,opBase+1,6);styleData(sens,5,9,6);styleData(sens,start2+2,start2+6,6);styleData(sens,opBase+2,opBase+6,6);
@@ -271,6 +276,7 @@ function exportWorkbook(project,forecast,valuation,ratios){
  for(let r=5;r<=9;r++){setFormat(sens,"A"+r,"0.0%");for(let c=2;c<=6;c++)setFormat(sens,ref(c,r),"#,##0.0;[Red](#,##0.0);-");}
  for(let r=start2+2;r<=start2+6;r++){setFormat(sens,"A"+r,"0.0%");for(let c=2;c<=6;c++)setFormat(sens,ref(c,r),"#,##0.0;[Red](#,##0.0);-");}
  for(let r=opBase+2;r<=opBase+6;r++){setFormat(sens,"A"+r,"0.0%");for(let c=2;c<=6;c++)setFormat(sens,ref(c,r),"#,##0.0;[Red](#,##0.0);-");}
+ extendRef(sens,opBase+6,6);
 
  // Checks: all checks link back to forecast formulas and reported source rows.
  const checkRows=[["Model checks"],["Check","Period","Calculated","Status"],["Forecast balance sheet","",null,null]];
