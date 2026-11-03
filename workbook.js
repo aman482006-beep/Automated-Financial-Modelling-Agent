@@ -259,6 +259,11 @@ function exportWorkbook(project,forecast,valuation,ratios){
  // Tie operating scenario grid to the detailed scenario formulas.
  for(let i=0;i<5;i++)for(let j=0;j<5;j++){const C=col(j+2),r=opBase+2+i,cell=scenarioCells[i+","+j];const value=E.operatingScenario(h,{...a,revenueGrowth:a.revenueGrowth+(i-2)*.02,grossMargin:baseEbitda+(j-2)*.02+a.employeePct+a.otherOpexPct},project.forecastYears,d);formulaCell(sens,C+r,"="+q("Scenario Calc")+"!"+cell,value||0)}
  headerRow(sens,4,6);headerRow(sens,start2+1,6);headerRow(sens,opBase+1,6);styleData(sens,5,9,6);styleData(sens,start2+2,start2+6,6);styleData(sens,opBase+2,opBase+6,6);
+ for(let c=2;c<=6;c++){setFormat(sens,ref(c,4),"0.0%");setFormat(sens,ref(c,start2+1),"0.0x");setFormat(sens,ref(c,opBase+1),"0.0%");}
+ for(let r=5;r<=9;r++){setFormat(sens,"A"+r,"0.0%");for(let c=2;c<=6;c++)setFormat(sens,ref(c,r),"#,##0.0;[Red](#,##0.0);-");}
+ for(let r=start2+2;r<=start2+6;r++){setFormat(sens,"A"+r,"0.0%");for(let c=2;c<=6;c++)setFormat(sens,ref(c,r),"#,##0.0;[Red](#,##0.0);-");}
+ for(let r=opBase+2;r<=opBase+6;r++){setFormat(sens,"A"+r,"0.0%");for(let c=2;c<=6;c++)setFormat(sens,ref(c,r),"#,##0.0;[Red](#,##0.0);-");}
+
  // Checks: all checks link back to forecast formulas and reported source rows.
  const checkRows=[["Model checks"],["Check","Period","Calculated","Status"],["Forecast balance sheet","",null,null]];
  for(let j=0;j<n;j++){const C=col(j+2);checkRows.push(["Forecast balance sheet",forecast[j].year,null,null])}
