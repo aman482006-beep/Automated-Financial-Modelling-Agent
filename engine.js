@@ -132,7 +132,11 @@ function validateHistory(h){
  const add=(ok,title,detail,severity)=>out.push({ok:!!ok,title,detail,severity:severity||(ok?"ok":"warning")});
  if(!n)add(false,"Historical periods","No historical data has been imported or loaded.");
  for(let i=0;i<n;i++){
-  const p=h.periods[i],ta=atValue(h,"BS","totalAssets",i),tle=atValue(h,"BS","totalLiabEquity",i);
+  const p=h.periods[i];
+  const required=[["Revenue",atValue(h,"IS","revenue",i)],["Cash and cash equivalents",atValue(h,"BS","cash",i)],["Total assets",atValue(h,"BS","totalAssets",i)],["Shareholders' equity",atValue(h,"BS","equity",i)],["Cash flow from operations",atValue(h,"CF","cfo",i)],["Capital expenditure",atValue(h,"CF","capex",i)]];
+  const missing=required.filter(([,v])=>v===null||v===undefined).map(([label])=>label);
+  add(missing.length===0,"Missing core statement data · "+p,missing.length?"Missing: "+missing.join(", "):"Core income statement, balance sheet and cash flow items are present.");
+  const ta=atValue(h,"BS","totalAssets",i),tle=atValue(h,"BS","totalLiabEquity",i);
   if(ta!==null&&tle!==null)add(Math.abs(num(ta)-num(tle))<.01,"Balance sheet · "+p,Math.abs(num(ta)-num(tle))<.01?"Reported assets equal liabilities plus equity.":"Difference: "+(num(ta)-num(tle)).toFixed(2));
   else add(false,"Balance sheet · "+p,"Total assets or total liabilities and equity is missing.");
   if(i>0){
@@ -158,7 +162,7 @@ function validateHistory(h){
  const ordered=h.periods.every((p,i)=>i===0||periodSort(h.periods[i-1],p)<0);
  add(ordered,"Period sequence",ordered?"Periods are unique and in ascending order.":"Periods are duplicated or out of order.");
  const missingRevenue=h.IS.revenue?.some(x=>x!==null);add(missingRevenue,"Revenue data",missingRevenue?"Revenue data is present for at least one period.":"Revenue is missing; forecasts and valuation will not be meaningful.");
- add(true,"Currency and reporting unit","Currency and unit labels are project metadata. The app does not perform automatic FX or scale conversion.");
+ add(true,"Currency and reporting unit","Project currency and unit are metadata. Confirm that every uploaded file uses the same currency and scale; the static app does not infer or convert source units.");
  return out;
 }
 function buildForecast(h,a,years){
