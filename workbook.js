@@ -1,6 +1,7 @@
 (function(root){
 "use strict";
 const X=root.XLSX;
+const E=root.ModelEngine;
 function col(n){let s="";while(n>0){let r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26)}return s}
 function ref(c,r){return col(c)+r}
 function q(sheet){return "'"+sheet.replace(/'/g,"''")+"'"}
