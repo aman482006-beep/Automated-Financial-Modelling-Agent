@@ -53,3 +53,41 @@ test("Excel report generates formula-linked statement, DCF, comps and sensitivit
   fs.rmSync(dir,{recursive:true,force:true});
  }
 });
+
+
+test("blank Excel data template has three importable sheets and round-trips into history", t => {
+  const original=process.cwd(),dir=fs.mkdtempSync(path.join(os.tmpdir(),"modelforge-template-"));
+  try {
+    process.chdir(dir);
+    const filename=window.ModelWorkbook.downloadDataTemplate();
+    assert.ok(fs.existsSync(path.join(dir,filename)));
+    const wb=XLSX.readFile(path.join(dir,filename),{cellDates:true});
+    for(const [sheet,group] of [["Income Statement","IS"],["Balance Sheet","BS"],["Cash Flow","CF"]]){
+      assert.ok(wb.SheetNames.includes(sheet));
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[sheet],{defval:null,raw:true});
+      assert.equal(rows.length,E.ITEMS[group].length);
+      const labels=rows.map(row=>row["Line item"]);
+      assert.deepEqual(labels,E.ITEMS[group].map(([,label])=>label));
+      for(const [,label] of E.ITEMS[group])assert.ok(E.mapLabel(label),"Template label must auto-map: "+label);
+    }
+    // Fill one cell on each sheet, then read it through the same parser used by the app.
+    wb.Sheets["Income Statement"].B2={t:"n",v:1250};
+    wb.Sheets["Balance Sheet"].B2={t:"n",v:240};
+    wb.Sheets["Cash Flow"].B2={t:"n",v:175};
+    const filled=path.join(dir,"filled-template.xlsx");
+    XLSX.writeFile(wb,filled,{cellStyles:true});
+    const imported=XLSX.readFile(filled,{cellDates:true});
+    const records=[];
+    for(const sheet of ["Income Statement","Balance Sheet","Cash Flow"]){
+      records.push(...E.recordsFromRows(XLSX.utils.sheet_to_json(imported.Sheets[sheet],{defval:null,raw:true}),sheet));
+    }
+    const history=E.historyFromRecords(records,{});
+    assert.deepEqual(history.periods,["2022"]);
+    assert.equal(history.IS.revenue[0],1250);
+    assert.equal(history.BS.cash[0],240);
+    assert.equal(history.CF.cfo[0],175);
+  } finally {
+    process.chdir(original);
+    fs.rmSync(dir,{recursive:true,force:true});
+  }
+});
