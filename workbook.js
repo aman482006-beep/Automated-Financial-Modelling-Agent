@@ -161,7 +161,7 @@ function exportWorkbook(project,forecast,valuation,ratios){
  formulaCell(dcfSheet,"B"+(terminalRow+3),"=B"+(terminalRow+1)+"+B"+(terminalRow+2),valuation.enterpriseValue||0);
  formulaCell(dcfSheet,"B"+(terminalRow+4),"="+q("Historical BS")+"!"+histLast+"12+"+q("Historical BS")+"!"+histLast+"13-"+q("Historical BS")+"!"+histLast+"5",valuation.netDebt);
  formulaCell(dcfSheet,"B"+(terminalRow+5),"=B"+(terminalRow+3)+"-B"+(terminalRow+4),valuation.equityValue||0);
- formulaCell(dcfSheet,"B"+(terminalRow+6),"='Inputs'!$B$35",d.sharesOutstanding);
+ formulaCell(dcfSheet,"B"+(terminalRow+6),"='Inputs'!$B$34",d.sharesOutstanding);
  formulaCell(dcfSheet,"B"+(terminalRow+7),"=IFERROR(B"+(terminalRow+5)+"/B"+(terminalRow+6)+",NA())",valuation.perShare||0);
  headerRow(dcfSheet,8,9);styleData(dcfSheet,9,lastDcf,9);
  // Comparables: entered peer facts are blue; every multiple and summary is formula-driven.
@@ -183,16 +183,16 @@ function exportWorkbook(project,forecast,valuation,ratios){
  const sensRows=[["Sensitivity analysis"],["Formula-driven scenario values. Change the WACC / terminal inputs on Inputs to update."],["WACC vs Perpetual Growth"],["WACC ↓ / Growth →",-2,-1,0,1,2],[""]];
  for(let s=-2;s<=2;s++)sensRows.push([null]);
  const sens=addSheet(wb,"Sensitivity",sensRows,[31,14,14,14,14,14]);title(sens,6,"Sensitivity analysis");
- for(let j=0;j<5;j++){const c=col(j+2);inputCell(sens,c+"4",project.dcf.perpetualGrowth+(j-2)*.01);setStyle(sens,c+"4",styles.input)}
- for(let i=0;i<5;i++){const r=5+i;inputCell(sens,"A"+r,valuation.wacc+(i-2)*.01);setStyle(sens,"A"+r,styles.input);for(let j=0;j<5;j++){const C=col(j+2),terms=[];for(let t=0;t<n;t++)terms.push(q("DCF")+"!"+col(t+2)+"14/(1+$A"+r+")^"+(t+1));const term="IF($A"+r+">"+C+"$4,"+q("DCF")+"!"+lastFc+"14*(1+"+C+"$4)/($A"+r+"-"+C+"$4)/(1+$A"+r+")^"+n+",NA())";const cached=dcfAt(valuation.wacc+(i-2)*.01,"growth",project.dcf.perpetualGrowth+(j-2)*.01,project.dcf.exitMultiple);formulaCell(sens,C+r,"="+terms.join("+")+"+"+term,cached)}} 
+ for(let j=0;j<5;j++){const c=col(j+2);formulaCell(sens,c+"4","='Inputs'!$B$36"+(j-2>=0?"+":"")+(j-2)*.01,project.dcf.perpetualGrowth+(j-2)*.01)}
+ for(let i=0;i<5;i++){const r=5+i;formulaCell(sens,"A"+r,"='Inputs'!$B$41"+(i-2>=0?"+":"")+(i-2)*.01,valuation.wacc+(i-2)*.01);for(let j=0;j<5;j++){const C=col(j+2),terms=[];for(let t=0;t<n;t++)terms.push(q("DCF")+"!$G$"+(9+t)+"/(1+$A"+r+")^"+(t+1));const term="IF($A"+r+">"+C+"$4,"+q("DCF")+"!$G$"+lastDcf+"*(1+"+C+"$4)/($A"+r+"-"+C+"$4)/(1+$A"+r+")^"+n+",NA())";const cached=dcfAt(valuation.wacc+(i-2)*.01,"growth",project.dcf.perpetualGrowth+(j-2)*.01,project.dcf.exitMultiple);formulaCell(sens,C+r,"="+terms.join("+")+"+"+term,cached)}}
  const start2=14;sens["A"+start2]={v:"WACC vs Exit EBITDA multiple",t:"s"};sens["A"+(start2+1)]={v:"WACC ↓ / Multiple →",t:"s"};
- for(let j=0;j<5;j++){const C=col(j+2);inputCell(sens,C+(start2+1),project.dcf.exitMultiple+(j-2)*1);setStyle(sens,C+(start2+1),styles.input)}
- for(let i=0;i<5;i++){const r=start2+2+i;const rate=valuation.wacc+(i-2)*.01;inputCell(sens,"A"+r,rate);for(let j=0;j<5;j++){const C=col(j+2),terms=[];for(let t=0;t<n;t++)terms.push(q("DCF")+"!"+col(t+2)+"14/(1+$A"+r+")^"+(t+1));const terminal=q("Forecast IS")+"!"+lastFc+"11*"+C+(start2+1)+"/(1+$A"+r+")^"+n;formulaCell(sens,C+r,"="+terms.join("+")+"+"+terminal,dcfAt(rate,"multiple",project.dcf.perpetualGrowth,project.dcf.exitMultiple+(j-2)*1))}}
+ for(let j=0;j<5;j++){const C=col(j+2);formulaCell(sens,C+(start2+1),"='Inputs'!$B$37"+(j-2>=0?"+":"")+(j-2)*1,project.dcf.exitMultiple+(j-2)*1)}
+ for(let i=0;i<5;i++){const r=start2+2+i;const rate=valuation.wacc+(i-2)*.01;formulaCell(sens,"A"+r,"='Inputs'!$B$41"+(i-2>=0?"+":"")+(i-2)*.01,rate);for(let j=0;j<5;j++){const C=col(j+2),terms=[];for(let t=0;t<n;t++)terms.push(q("DCF")+"!$G$"+(9+t)+"/(1+$A"+r+")^"+(t+1));const terminal=q("Forecast IS")+"!"+lastFc+"11*"+C+(start2+1)+"/(1+$A"+r+")^"+n;formulaCell(sens,C+r,"="+terms.join("+")+"+"+terminal,dcfAt(rate,"multiple",project.dcf.perpetualGrowth,project.dcf.exitMultiple+(j-2)*1))}}
  // Third sensitivity: each growth / EBITDA-margin pair has its own transparent formula schedule.
  const opBase=26;sens["A"+opBase]={v:"Revenue growth vs EBITDA margin",t:"s"};sens["A"+(opBase+1)]={v:"Growth ↓ / EBITDA margin →",t:"s"};
  const baseEbitda=project.assumptions.grossMargin-project.assumptions.employeePct-project.assumptions.otherOpexPct;
- for(let j=0;j<5;j++){const C=col(j+2);inputCell(sens,C+(opBase+1),baseEbitda+(j-2)*.02);setStyle(sens,C+(opBase+1),styles.input)}
- for(let i=0;i<5;i++){const r=opBase+2+i;inputCell(sens,"A"+r,project.assumptions.revenueGrowth+(i-2)*.02);setStyle(sens,"A"+r,styles.input)}
+ for(let j=0;j<5;j++){const C=col(j+2);formulaCell(sens,C+(opBase+1),"='Inputs'!$B$13-'Inputs'!$B$14-'Inputs'!$B$15"+(j-2>=0?"+":"")+(j-2)*.02,baseEbitda+(j-2)*.02)}
+ for(let i=0;i<5;i++){const r=opBase+2+i;formulaCell(sens,"A"+r,"='Inputs'!$B$12"+(i-2>=0?"+":"")+(i-2)*.02,project.assumptions.revenueGrowth+(i-2)*.02)}
  const scen=addSheet(wb,"Scenario Calc",[["Operating scenario detail"],["Every scenario is calculated from the editable growth and EBITDA-margin axes on Sensitivity."],["Scenario","Year","Revenue","EBITDA margin","Revenue","Gross profit","COGS","EBITDA","Opening PP&E","D&A","EBIT","NOPAT","D&A add-back","Capex","PP&E","AR","Inventory","Other CA","AP","Other liabilities","NWC","Change NWC","UFCF","Discount factor","PV UFCF"]],[34,13,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,16,14,14,14,14,14]);
  title(scen,25,"Operating scenario calculation detail");let row=4,scenarioCells={};
  const hLast=col(lastHist+1),startRev=E.num(h.IS.revenue.at(-1)),startPPE=E.num(h.BS.ppe.at(-1)),startAR=E.num(h.BS.ar.at(-1)),startInv=E.num(h.BS.inventory.at(-1)),startOca=E.num(h.BS.otherCurrentAssets.at(-1)),startAP=E.num(h.BS.ap.at(-1)),startOl=E.num(h.BS.otherLiabilities.at(-1)),startNwc=startAR+startInv+startOca-startAP-startOl;
@@ -234,7 +234,7 @@ function exportWorkbook(project,forecast,valuation,ratios){
    formulaCell(scen,C+rows["Discount factor"],"=1/(1+'Inputs'!$B$42)^"+(t+1),1/Math.pow(valuation.wacc,t+1));
    formulaCell(scen,C+rows["PV of UFCF"],"="+C+rows.UFCF+"*"+C+rows["Discount factor"],0);
   }
-  const terminalFormula=project.dcf.terminalMethod==="growth"?"=IF('Inputs'!$B$42>'Inputs'!$B$37,"+lastFc+rows.UFCF+"*(1+'Inputs'!$B$37)/('Inputs'!$B$42-'Inputs'!$B$37),NA())":"="+lastFc+rows.EBITDA+"*'Inputs'!$B$38";
+  const terminalFormula=project.dcf.terminalMethod==="growth"?"=IF('Inputs'!$B$41>'Inputs'!$B$36,"+lastFc+rows.UFCF+"*(1+'Inputs'!$B$36)/('Inputs'!$B$41-'Inputs'!$B$36),NA())":"="+lastFc+rows.EBITDA+"*'Inputs'!$B$37";
   const terminalValue=project.dcf.terminalMethod==="growth"?(valuation.wacc>project.dcf.perpetualGrowth?forecast.at(-1).ufcf*(1+project.dcf.perpetualGrowth)/(valuation.wacc-project.dcf.perpetualGrowth):0):forecast.at(-1).ebitda*project.dcf.exitMultiple;
   row++;scen["A"+row]={v:"Terminal value",t:"s"};formulaCell(scen,"B"+row,terminalFormula,terminalValue);const tvRef="B"+row;row++;
   scen["A"+row]={v:"PV terminal value",t:"s"};formulaCell(scen,"B"+row,"="+tvRef+"*"+lastFc+rows["Discount factor"],terminalValue/Math.pow(1+valuation.wacc,n));const pvtvRef="B"+row;row++;
@@ -253,7 +253,7 @@ function exportWorkbook(project,forecast,valuation,ratios){
  // Cover sheet: concise, linked and presentable.
  const coverRows=[["MODELFORGE | FINANCIAL ANALYSIS REPORT"],["Company",p.name],["Prepared by",p.analyst],["Industry",p.industry],["Valuation date",p.valuationDate],["Currency / unit",p.currency+" / "+p.unit],["Reporting frequency",p.frequency],["Forecast horizon",n+" years"],[""],["VALUATION SUMMARY"],["WACC",""],["Enterprise value",""],["Net debt",""],["Equity value",""],["Value per share",""],[""],["REPORT STRUCTURE"],["Historical statements","Historical IS / Historical BS / Historical CF"],["Forecast statements","Forecast IS / Forecast BS / Forecast CF"],["Valuation","DCF / Comparables / Sensitivity"],["Controls","Inputs / Checks / Scenario Calc"]];
  const cover=addSheet(wb,"Cover",coverRows,[31,58]);title(cover,2,"MODELFORGE | FINANCIAL ANALYSIS REPORT");
- formulaCell(cover,"B11","="+q("Inputs")+"!B42",valuation.wacc);formulaCell(cover,"B12","="+q("DCF")+"!B"+(terminalRow+3),valuation.enterpriseValue||0);formulaCell(cover,"B13","="+q("DCF")+"!B"+(terminalRow+4),valuation.netDebt);formulaCell(cover,"B14","="+q("DCF")+"!B"+(terminalRow+5),valuation.equityValue||0);formulaCell(cover,"B15","="+q("DCF")+"!B"+(terminalRow+7),valuation.perShare||0);
+ formulaCell(cover,"B11","="+q("Inputs")+"!B41",valuation.wacc);formulaCell(cover,"B12","="+q("DCF")+"!B"+(terminalRow+3),valuation.enterpriseValue||0);formulaCell(cover,"B13","="+q("DCF")+"!B"+(terminalRow+4),valuation.netDebt);formulaCell(cover,"B14","="+q("DCF")+"!B"+(terminalRow+5),valuation.equityValue||0);formulaCell(cover,"B15","="+q("DCF")+"!B"+(terminalRow+7),valuation.perShare||0);
  [10,17].forEach(r=>setStyle(cover,"A"+r,styles.section));
  // Workbook recalculate in Excel / LibreOffice when opened.
  wb.Workbook=wb.Workbook||{};wb.Workbook.CalcPr={calcId:191029,fullCalcOnLoad:true,forceFullCalc:true,calcMode:"auto"};
