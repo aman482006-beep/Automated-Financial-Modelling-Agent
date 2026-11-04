@@ -17,7 +17,7 @@ The repository uses GitHub Actions for publishing. In Settings → Pages, the pu
 5. Change forecast drivers and horizon. The three statements recalculate together.
 6. Enter DCF and WACC assumptions, choose the terminal method, then review the UFCF build and valuation chart.
 7. Enter observed peer data. Sample peers are clearly labelled synthetic.
-8. Export the linked Excel model or CSV report pack. Save and restore a local JSON project file.
+8. Open Export report to choose the exact report modules and export them as separate worksheets or one consolidated sheet. The complete all-tabs workbook retains linked formulas; customised exports are standalone value snapshots. Save and restore a local JSON project file.
 
 ## Included modules
 
@@ -31,7 +31,7 @@ The repository uses GitHub Actions for publishing. In Settings → Pages, the pu
 - Trading comparables: EV/Revenue, EV/EBITDA, EV/EBIT, P/E and P/B with median and average statistics.
 - Sensitivity: WACC / perpetual growth, WACC / exit multiple and revenue-growth / EBITDA-margin scenarios.
 - Model assistant: deterministic responses tied to active model inputs and calculations.
-- Export: formula-linked Excel workbook plus a 12-file CSV report pack.
+- Export centre: choose the executive cover, assumptions, historical statements, forecast statements, ratios, DCF, comparables, sensitivity / scenario analysis and checks; export selected modules as separate tabs or one consolidated sheet. The complete all-tabs Excel export preserves formulas, while selected exports are standalone value snapshots. A full CSV report pack is also available.
 - Themes: Light, Navy, Midnight, Emerald, Graphite and Warm paper.
 - Local project handling: localStorage autosave, JSON project download and restore.
 
