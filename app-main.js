@@ -309,7 +309,7 @@ function closeExportCenter(){
 function generateExcelReport(){
  try{
   if(!window.ModelWorkbook?.exportWorkbook)throw new Error("Excel report builder is unavailable. Refresh the page and try again.");
-  const selectedSheets=Array.from(new Set($(".export-module:checked").flatMap(el=>String(el.dataset.sheets||"").split("|").filter(Boolean))));
+  const selectedSheets=Array.from(new Set($$(".export-module:checked").flatMap(el=>String(el.dataset.sheets||"").split("|").filter(Boolean))));
   if(!selectedSheets.length)throw new Error("Select at least one report section.");
   const layout=$('input[name="exportLayout"]:checked')?.value||"tabs";
   const filename=window.ModelWorkbook.exportWorkbook(project,forecast,valuation,ratios,{selectedSheets,layout});
