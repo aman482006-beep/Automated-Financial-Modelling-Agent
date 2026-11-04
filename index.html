@@ -30,7 +30,7 @@
         <label class="theme-label">Theme <select id="themeSelect" aria-label="Choose theme"><option value="light">Light</option><option value="navy">Navy</option><option value="midnight">Midnight</option><option value="emerald">Emerald</option><option value="graphite">Graphite</option><option value="warm">Warm paper</option></select></label>
         <span id="saveStatus" class="save-status">● Saved locally</span>
         <button type="button" class="btn btn-outline desktop-reset" id="resetDemo">Reset demo</button>
-        <button type="button" class="btn btn-primary" id="excelExport">↓ Excel model</button>
+        <button type="button" class="btn btn-primary export-top-button" id="excelExport">↥ Export report</button>
       </div>
     </header>
 
@@ -119,6 +119,37 @@
     </div>
   </main>
 </div>
+<dialog id="exportDialog" class="export-dialog" aria-labelledby="exportTitle">
+  <div class="export-window">
+    <header class="export-header">
+      <div><span class="eyebrow">REPORT BUILDER</span><h2 id="exportTitle">Build your export</h2><p>Choose exactly which parts of the model you want to take with you.</p></div>
+      <button type="button" class="icon-button" id="exportClose" aria-label="Close export window">×</button>
+    </header>
+    <div class="export-content">
+      <div class="export-toolbar"><div><b>Report sections</b><small>Select one module, a few sections or the entire model.</small></div><button type="button" class="text-link" id="exportSelectAll">Deselect all</button></div>
+      <div class="export-module-grid">
+        <label class="export-module-card"><input class="export-module" type="checkbox" data-sheets="Cover" checked><span class="export-module-icon">✦</span><span class="export-module-copy"><b>Executive cover</b><small>Company profile and valuation summary</small><em>1 worksheet</em></span></label>
+        <label class="export-module-card"><input class="export-module" type="checkbox" data-sheets="Inputs" checked><span class="export-module-icon">⚙</span><span class="export-module-copy"><b>Inputs & assumptions</b><small>Operating drivers, capital structure and WACC inputs</small><em>1 worksheet</em></span></label>
+        <label class="export-module-card"><input class="export-module" type="checkbox" data-sheets="Historical IS|Historical BS|Historical CF" checked><span class="export-module-icon">▤</span><span class="export-module-copy"><b>Historical financials</b><small>Income statement, balance sheet and cash flow</small><em>3 worksheets</em></span></label>
+        <label class="export-module-card"><input class="export-module" type="checkbox" data-sheets="Forecast IS|Forecast BS|Forecast CF" checked><span class="export-module-icon">⌁</span><span class="export-module-copy"><b>Forecast statements</b><small>Projected income statement, balance sheet and cash flow</small><em>3 worksheets</em></span></label>
+        <label class="export-module-card"><input class="export-module" type="checkbox" data-sheets="Ratios" checked><span class="export-module-icon">％</span><span class="export-module-copy"><b>Financial ratios</b><small>Growth, profitability, returns, liquidity and leverage</small><em>1 worksheet</em></span></label>
+        <label class="export-module-card"><input class="export-module" type="checkbox" data-sheets="DCF" checked><span class="export-module-icon">◈</span><span class="export-module-copy"><b>DCF valuation</b><small>UFCF build, discounting, terminal value and equity bridge</small><em>1 worksheet</em></span></label>
+        <label class="export-module-card"><input class="export-module" type="checkbox" data-sheets="Comparables" checked><span class="export-module-icon">▥</span><span class="export-module-copy"><b>Trading comparables</b><small>Peer inputs, trading multiples and valuation reference</small><em>1 worksheet</em></span></label>
+        <label class="export-module-card"><input class="export-module" type="checkbox" data-sheets="Sensitivity|Scenario Calc" checked><span class="export-module-icon">▧</span><span class="export-module-copy"><b>Sensitivity & scenarios</b><small>WACC, terminal growth, multiples and operating cases</small><em>2 worksheets</em></span></label>
+        <label class="export-module-card"><input class="export-module" type="checkbox" data-sheets="Checks" checked><span class="export-module-icon">✓</span><span class="export-module-copy"><b>Model checks</b><small>Reconciliation and integrity checks</small><em>1 worksheet</em></span></label>
+      </div>
+      <section class="export-layout-section">
+        <div class="export-toolbar"><div><b>Workbook layout</b><small>Pick how the selected sections should be arranged.</small></div></div>
+        <div class="export-layout-options">
+          <label class="export-layout-card"><input type="radio" name="exportLayout" value="tabs" checked><span><b>Separate worksheets</b><small>One tab per section. Best for analysis and further editing.</small></span></label>
+          <label class="export-layout-card"><input type="radio" name="exportLayout" value="single"><span><b>One consolidated sheet</b><small>Stack all selected sections into one long report sheet.</small></span></label>
+        </div>
+      </section>
+      <div class="export-note"><b>About customised exports</b><span>When you export selected sections, cross-sheet formulas are converted to their current calculated values so the file remains self-contained. Exporting the complete report as separate worksheets preserves the linked model formulas.</span></div>
+    </div>
+    <footer class="export-footer"><button type="button" class="btn btn-outline" id="exportCancel">Cancel</button><button type="button" class="btn btn-primary" id="exportGenerate">↓ Download Excel report</button></footer>
+  </div>
+</dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 <script>
 (function(){
