@@ -23,6 +23,7 @@ The repository uses GitHub Actions for publishing. In Settings → Pages, the pu
 
 - Company profile: company name, analyst, industry, valuation date, currency, reporting unit, frequency and shares outstanding.
 - Data intake: multi-file CSV / XLSX / XLS import; wide, long and transposed layouts; standard field mapping; editable historical line items.
+- Screener.in workbook import: the Data Sheet is detected by its statement-section contents (not only its tab name); company, current price, market capitalisation, share count, annual income statement, balance sheet and cash flow are extracted automatically. Quarterly figures are kept out of the annual model to avoid mixing period frequencies.
 - Validation: balance sheet, cash flow bridge, subtotals and period sequence checks.
 - Historical analysis: growth, margins, ROE, ROA, ROCE, liquidity, leverage, interest coverage, turnover, working capital and FCF.
 - Three-statement forecast: adjustable horizon and drivers for revenue, margins, operating costs, D&A, tax, capex, working capital, interest, debt repayment and dividends.
