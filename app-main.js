@@ -422,7 +422,7 @@ function bindEvents(){
  $("#exportCancel").addEventListener("click",closeExportCenter);
  $("#exportGenerate").addEventListener("click",generateExcelReport);
  $("#exportSelectAll").addEventListener("click",()=>{
-  const boxes=$(".export-module"),select=boxes.some(box=>!box.checked);
+  const boxes=$$(".export-module"),select=boxes.some(box=>!box.checked);
   boxes.forEach(box=>box.checked=select);
   $("#exportSelectAll").textContent=select?"Deselect all":"Select all";
  });
