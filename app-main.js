@@ -296,6 +296,27 @@ async function exportCsvPack(){
  z.file("11_Validation.csv",csvText([["Check","Status","Detail"],...E.validateHistory(project.history).map(x=>[x.title,x.ok?"OK":"REVIEW",x.detail])]));
  const blob=await z.generateAsync({type:"blob"});downloadBlob((p.name||"Company").replace(/[^a-z0-9]+/gi,"_")+"_Financial_Report_CSV_Pack.zip",blob);toast("CSV report pack downloaded.");
 }
+function openExportCenter(){
+ const dialog=$("#exportDialog");if(!dialog)return;
+ if(typeof dialog.showModal==="function"){if(!dialog.open)dialog.showModal();}
+ else dialog.setAttribute("open","");
+}
+function closeExportCenter(){
+ const dialog=$("#exportDialog");if(!dialog)return;
+ if(typeof dialog.close==="function"&&dialog.open)dialog.close();
+ else dialog.removeAttribute("open");
+}
+function generateExcelReport(){
+ try{
+  if(!window.ModelWorkbook?.exportWorkbook)throw new Error("Excel report builder is unavailable. Refresh the page and try again.");
+  const selectedSheets=Array.from(new Set($(".export-module:checked").flatMap(el=>String(el.dataset.sheets||"").split("|").filter(Boolean))));
+  if(!selectedSheets.length)throw new Error("Select at least one report section.");
+  const layout=$('input[name="exportLayout"]:checked')?.value||"tabs";
+  const filename=window.ModelWorkbook.exportWorkbook(project,forecast,valuation,ratios,{selectedSheets,layout});
+  closeExportCenter();
+  toast("Report downloaded: "+filename);
+ }catch(error){toast("Export failed: "+(error?.message||String(error)));}
+}
 function saveProjectFile(){const blob=new Blob([JSON.stringify(project,null,2)],{type:"application/json"});downloadBlob((project.profile.name||"ModelForge").replace(/[^a-z0-9]+/gi,"_")+"_project.json",blob);toast("Project backup downloaded.")}
 function loadProjectFile(file){const reader=new FileReader();reader.onload=()=>{try{const p=JSON.parse(reader.result);if(!p.profile||!p.history)throw new Error("Not a ModelForge project file.");project=normaliseProject(p);syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();persist();toast("Project loaded.")}catch(e){toast("Could not load project: "+e.message)}};reader.readAsText(file)}
 
@@ -396,7 +417,15 @@ function bindEvents(){
  $("#saveProject").addEventListener("click",saveProjectFile);
  $("#loadProjectFile").addEventListener("change",e=>{if(e.target.files[0])loadProjectFile(e.target.files[0])});
  $("#csvExport").addEventListener("click",exportCsvPack);
- $("#excelExport").addEventListener("click",()=>{try{if(!window.ModelWorkbook)throw new Error("Workbook module has not loaded.");window.ModelWorkbook.exportWorkbook(project,forecast,valuation,ratios);toast("Formula-linked Excel model exported.")}catch(e){toast("Excel export failed: "+e.message)}});
+ $("#excelExport").addEventListener("click",openExportCenter);
+ $("#exportClose").addEventListener("click",closeExportCenter);
+ $("#exportCancel").addEventListener("click",closeExportCenter);
+ $("#exportGenerate").addEventListener("click",generateExcelReport);
+ $("#exportSelectAll").addEventListener("click",()=>{
+  const boxes=$(".export-module"),select=boxes.some(box=>!box.checked);
+  boxes.forEach(box=>box.checked=select);
+  $("#exportSelectAll").textContent=select?"Deselect all":"Select all";
+ });
  $$("[name=terminalMethod]").forEach(el=>el.addEventListener("change",()=>{project.dcf.terminalMethod=el.value;renderTerminal();rebuild();persist()}));
  $("#addPeer").addEventListener("click",()=>{project.peers.push({name:"New peer — enter observed data",ev:0,revenue:0,ebitda:0,ebit:0,netIncome:0,marketCap:0,bookEquity:0,synthetic:false});renderPeers();persist()});
  $("#resetPeers").addEventListener("click",()=>{project.peers=clone(E.DEFAULT_PEERS);renderPeers();persist()});
