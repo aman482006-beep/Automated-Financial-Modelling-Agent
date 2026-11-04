@@ -179,8 +179,27 @@ function seedAssumptionsFromImportedHistory(p,meta){
  return p;
 }
 
+function setImportStatus(message,isError=false){
+ const el=$("#importStatus");if(!el)return;
+ el.textContent=message;el.style.color=isError?"var(--red)":"";
+}
+function showImportError(error){
+ const message=error?.message||String(error||"Unknown import error");
+ setImportStatus("Import failed: "+message,true);
+ toast("Import failed — see the detailed message in the import panel.");
+}
+async function fileArrayBuffer(file){
+ if(typeof file.arrayBuffer==="function")return file.arrayBuffer();
+ return new Promise((resolve,reject)=>{
+  const reader=new FileReader();
+  reader.onload=()=>resolve(reader.result);
+  reader.onerror=()=>reject(new Error("The browser could not read "+file.name+". Try saving the workbook again as .xlsx."));
+  reader.readAsArrayBuffer(file);
+ });
+}
 async function importStatements(files){
  if(!files.length)return;
+ setImportStatus("Reading "+files.length+" file(s) and detecting the statement layout…");
  let records=[],screenerImport=null,filesLoaded=0;
  for(const file of files){
   const ext=file.name.split(".").pop().toLowerCase();
@@ -188,22 +207,38 @@ async function importStatements(files){
    records=records.concat(E.recordsFromRows(parseCsv(await file.text()),"",file.name));
    filesLoaded++;
   }else if(["xlsx","xls"].includes(ext)){
-   if(!window.XLSX?.utils?.sheet_to_json)throw new Error("Excel reader unavailable. Reload with internet access or upload a CSV file.");
-   const workbook=XLSX.read(await file.arrayBuffer(),{type:"array",cellDates:true});
-   const dataSheetName=workbook.SheetNames.find(name=>E.normaliseLabel(name)==="datasheet");
-   if(dataSheetName){
-    const matrix=XLSX.utils.sheet_to_json(workbook.Sheets[dataSheetName],{header:1,defval:null,raw:true,blankrows:true});
+   const XLSXLib=window.XLSX;
+   if(!XLSXLib?.utils?.sheet_to_json)throw new Error("The Excel reader did not load. Refresh the page and retry; if the CDN is blocked, try another network or upload CSV.");
+   const bytes=await fileArrayBuffer(file);
+   let workbook;
+   try{
+    workbook=XLSXLib.read(new Uint8Array(bytes),{type:"array",cellDates:true});
+   }catch(firstError){
+    try{workbook=XLSXLib.read(bytes,{cellDates:true});}
+    catch(secondError){throw new Error("Could not open "+file.name+": "+(secondError?.message||firstError?.message||"invalid Excel workbook"));}
+   }
+   if(!workbook?.SheetNames?.length)throw new Error(file.name+" contains no readable worksheets.");
+   const orderedSheets=[...workbook.SheetNames].sort((a,b)=>{
+    const aa=E.normaliseLabel(a)==="datasheet"?0:1,bb=E.normaliseLabel(b)==="datasheet"?0:1;
+    return aa-bb;
+   });
+   let detectedScreener=false;
+   for(const name of orderedSheets){
+    const matrix=XLSXLib.utils.sheet_to_json(workbook.Sheets[name],{header:1,defval:null,raw:true,blankrows:true});
     const parsed=E.parseScreenerDataSheet(matrix);
-    if(!parsed?.records?.length)throw new Error("A Screener-style Data Sheet was found, but no annual financial rows could be extracted. Please check that the Data Sheet tab is intact.");
-    screenerImport=parsed;
-    records=records.concat(parsed.records);
-   }else{
-    workbook.SheetNames.forEach(name=>records=records.concat(E.recordsFromRows(XLSX.utils.sheet_to_json(workbook.Sheets[name],{defval:null,raw:true}),name,file.name)));
+    if(parsed?.records?.length){
+     screenerImport=parsed;records=records.concat(parsed.records);detectedScreener=true;break;
+    }
+   }
+   if(!detectedScreener){
+    workbook.SheetNames.forEach(name=>{
+     records=records.concat(E.recordsFromRows(XLSXLib.utils.sheet_to_json(workbook.Sheets[name],{defval:null,raw:true}),name,file.name));
+    });
    }
    filesLoaded++;
   }else throw new Error("Unsupported file type: "+file.name+". Upload a .csv, .xlsx or .xls file.");
  }
- if(!records.length)throw new Error("No numeric financial values were found. Use the ModelForge template, a Screener.in export, or a CSV with Period / Item / Value columns.");
+ if(!records.length)throw new Error("No financial values were found in "+files.map(f=>f.name).join(", ")+". For Screener.in exports, keep the Data Sheet content intact. Other workbooks need Period/Year and line-item headers, or Period, Statement, Item and Value columns.");
  if(screenerImport){
   const fresh=E.defaultProject();
   fresh.profile={...fresh.profile,name:screenerImport.companyName||files[0].name.replace(/\.(xlsx|xls)$/i,""),analyst:"Financial Analyst",industry:"",valuationDate:screenerImport.latestDate||fresh.profile.valuationDate,currency:screenerImport.currency||"INR",unit:screenerImport.unit||"crores",frequency:"Annual",sharesOutstanding:screenerImport.sharesOutstandingCrores||100};
@@ -234,7 +269,7 @@ async function importStatements(files){
  const unmapped=Array.from(new Set(records.map(r=>r.label))).filter(label=>!project.mapping[label]||project.mapping[label]==="ignore");
  const periodCount=project.history.periods.length,company=project.profile.name||"uploaded company";
  const note=screenerImport?(screenerImport.sourceNotes||[]).join(" "):"";
- $("#importStatus").textContent="Imported "+records.length+" values from "+filesLoaded+" file(s). "+(unmapped.length?unmapped.length+" source label(s) need mapping.":"Recognised fields mapped automatically.")+(note?" "+note:"");
+ setImportStatus("Imported "+records.length+" financial values from "+filesLoaded+" file(s). "+(unmapped.length?unmapped.length+" source label(s) need mapping.":"Recognised fields mapped automatically.")+(note?" "+note:""));
  showPage("overview");
  toast(company+" loaded: "+periodCount+" historical periods. Dashboard, history, forecast and valuation have been refreshed.");
 }
@@ -351,11 +386,11 @@ function bindEvents(){
  $("#runChecks").addEventListener("click",()=>{renderValidation();toast("Validation checks refreshed.")});
  $("#applyMapping").addEventListener("click",applyMapping);
  $("#loadSample").addEventListener("click",loadSample);
- $("#fileInput").addEventListener("change",async e=>{const files=Array.from(e.target.files||[]);try{await importStatements(files)}catch(err){toast(err.message)}finally{e.target.value="";}});
+ $("#fileInput").addEventListener("change",async e=>{const files=Array.from(e.target.files||[]);try{await importStatements(files)}catch(err){showImportError(err)}finally{e.target.value="";}});
  const dropZone=$("#fileInput").closest(".upload-drop");
  ["dragenter","dragover"].forEach(type=>dropZone.addEventListener(type,e=>{e.preventDefault();e.stopPropagation();dropZone.classList.add("dragging")}));
  ["dragleave","dragend"].forEach(type=>dropZone.addEventListener(type,e=>{e.preventDefault();dropZone.classList.remove("dragging")}));
- dropZone.addEventListener("drop",async e=>{e.preventDefault();e.stopPropagation();dropZone.classList.remove("dragging");try{await importStatements(Array.from(e.dataTransfer?.files||[]))}catch(err){toast(err.message)}});
+ dropZone.addEventListener("drop",async e=>{e.preventDefault();e.stopPropagation();dropZone.classList.remove("dragging");try{await importStatements(Array.from(e.dataTransfer?.files||[]))}catch(err){showImportError(err)}});
  $("#downloadExcelTemplate").addEventListener("click",()=>{try{if(!window.ModelWorkbook?.downloadDataTemplate)throw new Error("Excel template generator is not loaded.");window.ModelWorkbook.downloadDataTemplate();toast("Blank Excel template downloaded.")}catch(err){toast("Template download failed: "+err.message)}});
  $("#downloadSampleCsv").addEventListener("click",()=>{const headers=["period","Revenue","Cost of goods sold","Gross profit","Employee expenses","Other operating expenses","EBITDA","Depreciation","EBIT","Interest expense","Profit before tax","Tax","Net income","Cash","Accounts receivable","Inventory","Other current assets","PP&E","Total assets","Accounts payable","Short-term debt","Long-term debt","Other liabilities","Shareholders equity","Total liabilities and equity","Cash flow from operations","Capital expenditure","Cash flow from investing","Cash flow from financing","Free cash flow"];const keys=["revenue","cogs","grossProfit","employeeExpenses","otherOpex","ebitda","da","ebit","interestExpense","pbt","tax","netIncome","cash","ar","inventory","otherCurrentAssets","ppe","totalAssets","ap","shortDebt","longDebt","otherLiabilities","equity","totalLiabEquity","cfo","capex","cfi","cff","fcf"];const rows=[headers];project.history.periods.forEach((period,i)=>rows.push([period,...keys.map(k=>{for(const g of ["IS","BS","CF"])if(project.history[g][k])return project.history[g][k][i]??"";return ""})]));downloadBlob("ModelForge_Sample_Historical_Statements.csv",new Blob([csvText(rows)],{type:"text/csv"}))});
  $("#saveProject").addEventListener("click",saveProjectFile);
