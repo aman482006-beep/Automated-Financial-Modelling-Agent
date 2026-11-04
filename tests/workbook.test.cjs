@@ -55,6 +55,37 @@ test("Excel report generates formula-linked statement, DCF, comps and sensitivit
 });
 
 
+test("selected DCF export is self-contained and contains only the requested worksheet",t=>{
+ const p=E.defaultProject(),f=E.buildForecast(p.history,p.assumptions,p.forecastYears),r=E.historicalRatios(p.history),v=E.calculateDCF(f,p.history,p.dcf,p.assumptions);
+ const original=process.cwd(),dir=fs.mkdtempSync(path.join(os.tmpdir(),"modelforge-selected-"));
+ try{
+  process.chdir(dir);
+  const file=window.ModelWorkbook.exportWorkbook(p,f,v,r,{selectedSheets:["DCF"],layout:"tabs"});
+  const wb=XLSX.readFile(file,{cellFormula:true});
+  assert.deepEqual(wb.SheetNames,["DCF"]);
+  const dcf=wb.Sheets.DCF;
+  assert.ok(dcf.B3&&Number.isFinite(dcf.B3.v),"DCF WACC value should remain in the selected export");
+  assert.equal(dcf.B3.f,undefined,"Selected DCF sheet should not retain a broken cross-sheet formula");
+  assert.ok(dcf["A9"].v,"DCF forecast schedule should be included");
+ }finally{process.chdir(original);fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test("consolidated report export combines selected modules into one worksheet",t=>{
+ const p=E.defaultProject(),f=E.buildForecast(p.history,p.assumptions,p.forecastYears),r=E.historicalRatios(p.history),v=E.calculateDCF(f,p.history,p.dcf,p.assumptions);
+ const original=process.cwd(),dir=fs.mkdtempSync(path.join(os.tmpdir(),"modelforge-single-"));
+ try{
+  process.chdir(dir);
+  const file=window.ModelWorkbook.exportWorkbook(p,f,v,r,{selectedSheets:["Cover","DCF"],layout:"single"});
+  const wb=XLSX.readFile(file,{cellFormula:true});
+  assert.deepEqual(wb.SheetNames,["Full report"]);
+  const rows=XLSX.utils.sheet_to_json(wb.Sheets["Full report"],{header:1,defval:""});
+  const values=rows.flat().map(String);
+  assert.ok(values.includes("Cover"),"Consolidated report should contain the cover section");
+  assert.ok(values.includes("DCF"),"Consolidated report should contain the DCF section");
+  assert.ok(values.includes("Discounted cash flow valuation"),"Consolidated report should retain DCF content");
+ }finally{process.chdir(original);fs.rmSync(dir,{recursive:true,force:true});}
+});
+
 test("blank Excel data template has three importable sheets and round-trips into history", t => {
   const original=process.cwd(),dir=fs.mkdtempSync(path.join(os.tmpdir(),"modelforge-template-"));
   try {
