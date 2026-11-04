@@ -89,7 +89,7 @@ function renderWACC(){
  $$("[data-dcf]").forEach(el=>el.addEventListener("change",()=>{const k=el.dataset.dcf;project.dcf[k]=n(el.value)/(pctKeys.has(k)?100:1);rebuild();persist()}));
 }
 function renderTerminal(){
- $("[name=terminalMethod]").forEach(el=>el.checked=el.value===project.dcf.terminalMethod);
+ $$("[name=terminalMethod]").forEach(el=>el.checked=el.value===project.dcf.terminalMethod);
  const g=project.dcf.terminalMethod==="growth";
  $("#terminalInputs").innerHTML=g?'<label>Perpetual growth rate (%)<input id="terminalValueInput" type="number" step=".1" value="'+(project.dcf.perpetualGrowth*100)+'"></label>':'<label>Exit EBITDA multiple (x)<input id="terminalValueInput" type="number" step=".1" value="'+project.dcf.exitMultiple+'"></label>';
  $("#terminalValueInput").addEventListener("change",e=>{if(g)project.dcf.perpetualGrowth=n(e.target.value)/100;else project.dcf.exitMultiple=n(e.target.value);rebuild();persist()});
