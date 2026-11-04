@@ -63,7 +63,7 @@
         </div></article>
         <article class="panel" id="importPanel"><div class="panel-heading"><div><h2>2. Import a financial statement</h2><p>Upload your own statements or use the ready-made workbook template.</p></div><span class="tag">CSV · XLSX · XLS</span></div>
           <div class="template-download-row"><div><b>Need the correct Excel format?</b><small>Download the blank workbook, fill in the blue cells, then upload it here.</small></div><button type="button" class="btn btn-outline" id="downloadExcelTemplate">↓ Download Excel template</button></div>
-          <div class="upload-row"><label class="upload-drop"><input id="fileInput" type="file" accept=".csv,.xlsx,.xls" multiple><span class="upload-icon">↑</span><b>Choose statement files</b><small>Or drag files into this area · multiple files supported</small></label><div class="upload-info"><b>Expected columns</b><p>Wide format: Period / Year plus line-item columns such as Revenue, EBITDA, Cash, PP&E.</p><p>Long format: Period, Statement, Item and Value columns.</p><p>Excel template: three tabs for Income Statement, Balance Sheet and Cash Flow. Keep the line-item labels unchanged.</p><button type="button" class="text-link" id="downloadSampleCsv">Download sample CSV ↗</button><span id="importStatus">No files imported in this session.</span></div></div>
+          <div class="upload-row"><label class="upload-drop"><input id="fileInput" type="file" accept=".csv,.xlsx,.xls" multiple><span class="upload-icon">↑</span><b>Choose statement files</b><small>Or drag files into this area · multiple files supported</small></label><div class="upload-info"><b>Automatic format detection</b><p><strong>Screener.in Excel:</strong> Detects the Data Sheet automatically and imports company name, share count, current price, market cap, annual income statement, balance sheet and cash flow.</p><p><strong>ModelForge template:</strong> Three tabs for Income Statement, Balance Sheet and Cash Flow.</p><p><strong>Other CSV / Excel:</strong> Wide format with Period / Year and line-item columns, or long format with Period, Statement, Item and Value.</p><button type="button" class="text-link" id="downloadSampleCsv">Download sample CSV ↗</button><span id="importStatus">No files imported in this session.</span></div></div>
         </article>
         <article class="panel"><div class="panel-heading"><div><h2>3. Check source field mapping</h2><p>Change how imported labels map to standard financial statement items. Unmapped rows are not discarded.</p></div><button type="button" class="btn btn-outline" id="applyMapping">Apply mapping</button></div><div class="table-scroll"><table id="mappingTable"></table></div></article>
         <article class="panel"><div class="panel-heading"><div><h2>4. Check data quality</h2><p>Review warnings before using the data in a forecast or valuation.</p></div><button type="button" class="btn btn-outline" id="runChecks">↻ Run checks</button></div><div id="validationList" class="validation-list"></div></article>
@@ -120,9 +120,44 @@
   </main>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
-<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-<script src="./engine.js"></script>
-<script src="./workbook.js"></script>
-<script src="./app-main.js"></script>
+<script>
+(function(){
+ const loadScript=src=>new Promise((resolve,reject)=>{
+  const script=document.createElement("script");script.src=src;
+  script.onload=()=>resolve();script.onerror=()=>{script.remove();reject(new Error("Could not load "+src));};
+  document.head.appendChild(script);
+ });
+ async function loadOneOf(urls,ready,label){
+  if(ready())return true;let lastError;
+  for(const url of urls){
+   try{await loadScript(url);if(ready())return true;lastError=new Error(label+" loaded without exposing its browser API: "+url);}
+   catch(error){lastError=error;}
+  }
+  throw lastError||new Error(label+" could not be loaded.");
+ }
+ (async()=>{
+  try{
+   await loadOneOf([
+    "https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js",
+    "https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js",
+    "https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js",
+    "https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.min.js"
+   ],()=>!!window.XLSX?.utils?.sheet_to_json,"Excel reader");
+  }catch(error){window.ModelForgeXlsxLoadError=error.message;}
+  try{
+   await loadOneOf([
+    "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js",
+    "https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"
+   ],()=>!!window.JSZip,"CSV export helper");
+  }catch(error){window.ModelForgeZipLoadError=error.message;}
+  await loadScript("./engine.js");
+  await loadScript("./workbook.js");
+  await loadScript("./app-main.js");
+  if(window.ModelForgeXlsxLoadError){
+   const status=document.querySelector("#importStatus");
+   if(status)status.textContent="Excel reader could not be loaded. CSV import and manual entry remain available; check your network or browser content blockers.";
+  }
+ })().catch(error=>{console.error("ModelForge startup failed:",error);document.body.insertAdjacentHTML("beforeend",'<div style="position:fixed;inset:auto 12px 82px 12px;padding:12px;background:#fee2e2;color:#991b1b;z-index:9999;border-radius:6px">The modelling workspace could not start: '+String(error.message||error).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))+'</div>');});
+})();
+</script>
 </body></html>
