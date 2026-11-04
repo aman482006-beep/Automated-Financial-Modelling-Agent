@@ -35,7 +35,7 @@ function addHistorical(wb,titleText,periods,group,items){
  for(let r=5;r<5+items.length;r++)for(let c=2;c<=periods.length+1;c++){setStyle(ws,ref(c,r),styles.input);setFormat(ws,ref(c,r),"#,##0.0;[Red](#,##0.0);-");}
  return ws;
 }
-function exportWorkbook(project,forecast,valuation,ratios){
+function exportWorkbook(project,forecast,valuation,ratios,options={}){
  if(!X)throw new Error("Excel writer is not available. Reload this page with internet access.");
  const p=project.profile,h=project.history,a=project.assumptions,d=project.dcf,n=forecast.length,periods=h.periods,lastHist=h.periods.length,wb=X.utils.book_new();
  const iRows={revenue:5,cogs:6,grossProfit:7,employeeExpenses:8,otherOpex:9,ebitda:10,da:11,ebit:12,interestExpense:13,pbt:14,tax:15,netIncome:16};
@@ -292,8 +292,63 @@ function exportWorkbook(project,forecast,valuation,ratios){
  [10,17].forEach(r=>setStyle(cover,"A"+r,styles.section));
  // Workbook recalculate in Excel / LibreOffice when opened.
  wb.Workbook=wb.Workbook||{};wb.Workbook.CalcPr={calcId:191029,fullCalcOnLoad:true,forceFullCalc:true,calcMode:"auto"};
- const filename=(p.name||"Company").replace(/[^a-z0-9]+/gi,"_")+"_Integrated_Financial_Model.xlsx";
- X.writeFile(wb,filename,{cellStyles:true});
+ const allSheets=wb.SheetNames.slice();
+ const requested=Array.isArray(options.selectedSheets)?options.selectedSheets:[];
+ const selected=allSheets.filter(name=>requested.includes(name));
+ if(Array.isArray(options.selectedSheets)&&!selected.length)throw new Error("Choose at least one report section to export.");
+ const layout=options.layout==="single"?"single":"tabs";
+ let output=wb;
+ const completeSelection=selected.length===allSheets.length;
+ const makeSnapshot=source=>{
+  const copy=JSON.parse(JSON.stringify(source));
+  Object.keys(copy).forEach(key=>{
+   if(key[0]==="!")return;
+   const cell=copy[key];
+   if(cell&&typeof cell==="object"&&cell.f!==undefined){delete cell.f;delete cell.F;delete cell.D;}
+  });
+  return copy;
+ };
+ if(Array.isArray(options.selectedSheets)&&!(layout==="tabs"&&completeSelection)){
+  const names=selected;
+  if(layout==="tabs"){
+   output=X.utils.book_new();
+   names.forEach(name=>X.utils.book_append_sheet(output,makeSnapshot(wb.Sheets[name]),name));
+  }else{
+   const rows=[],sectionRows=[],maxCols=Math.max(2,...names.map(name=>{
+    const ref=wb.Sheets[name]["!ref"];return ref?X.utils.decode_range(ref).e.c+1:2;
+   }));
+   names.forEach(name=>{
+    const source=wb.Sheets[name],ref=source["!ref"]||"A1";
+    const range=X.utils.decode_range(ref);
+    sectionRows.push(rows.length);
+    rows.push([name]);
+    for(let r=range.s.r;r<=range.e.r;r++){
+     const line=[];
+     for(let c=range.s.c;c<=range.e.c;c++){
+      const cell=source[X.utils.encode_cell({r,c})];
+      line.push(cell&&cell.v!==undefined?cell.v:"");
+     }
+     rows.push(line);
+    }
+    rows.push([]);
+   });
+   const combined=X.utils.aoa_to_sheet(rows);
+   combined["!cols"]=Array.from({length:maxCols},(_,i)=>({wch:i===0?34:16}));
+   combined["!merges"]=[];
+   sectionRows.forEach(r=>{
+    const cell="A"+(r+1);
+    if(combined[cell])combined[cell].s=styles.section;
+    if(maxCols>1)combined["!merges"].push({s:{r,c:0},e:{r,c:maxCols-1}});
+    if(!combined["!rows"])combined["!rows"]=[];
+    combined["!rows"][r]={hpt:22};
+   });
+   X.utils.book_append_sheet(output= X.utils.book_new(),combined,"Full report");
+  }
+ }
+ const safeName=(p.name||"Company").replace(/[^a-z0-9]+/gi,"_").replace(/^_+|_+$/g,"")||"Company";
+ const suffix=Array.isArray(options.selectedSheets)?(layout==="single"?"_Consolidated_Report":completeSelection?"_Integrated_Financial_Model":"_Selected_Report"):"_Integrated_Financial_Model";
+ const filename=safeName+suffix+".xlsx";
+ X.writeFile(output,filename,{cellStyles:true,compression:true});
  return filename;
 }
 
