@@ -445,8 +445,9 @@ function bindEvents(){
 }
 function init(){
  bindEvents();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();
- showPage("overview");
+ // Build forecast and valuation before showPage() redraws the active overview charts.
  rebuild();
+ showPage("overview");
  window.addEventListener("resize",()=>window.requestAnimationFrame(drawCharts),{passive:true});
  // The first calculation can run before the browser has assigned final canvas dimensions.
  // Draw again after layout so the initial dashboard never leaves blank charts.
