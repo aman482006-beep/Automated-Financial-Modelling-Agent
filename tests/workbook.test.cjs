@@ -17,6 +17,9 @@ test("Excel report generates formula-linked statement, DCF, comps and sensitivit
  const original=process.cwd(),dir=fs.mkdtempSync(path.join(os.tmpdir(),"modelforge-xlsx-"));
  try{
   process.chdir(dir);
+  let exportedWorkbook=null;
+  const originalWriteFile=XLSX.writeFile;
+  XLSX.writeFile=(book,...args)=>{exportedWorkbook=book;return originalWriteFile.call(XLSX,book,...args);};
   const file=window.ModelWorkbook.exportWorkbook(p,f,valuation,ratios);
   assert.ok(fs.existsSync(path.join(dir,file)),"Excel export file should exist");
   const wb=XLSX.readFile(path.join(dir,file),{cellFormula:true,cellStyles:true});
@@ -50,15 +53,16 @@ test("Excel report generates formula-linked statement, DCF, comps and sensitivit
   assert.equal(wb.Sheets.Inputs.B35.v,"Perpetuity growth");
   assert.equal(wb.Sheets.Checks.D4.v,"PASS","Check formulas should store readable PASS / REVIEW text");
   assert.equal(typeof wb.Sheets.Checks.D4.v,"string","Text formula results must remain text values");
-  assert.ok(wb.Sheets.Inputs.B12.z.includes("[Red]"),"Negative assumption percentages should display in red");
-  assert.ok(wb.Sheets["Forecast CF"].B9.z.includes("[Red]"),"Negative cash outflows should display in red");
-  assert.ok(wb.Sheets.Inputs.B12.s.font.color.rgb.endsWith("1F5FBF"),"Editable assumptions should use blue font");
-  assert.ok(wb.Sheets["Forecast IS"].B5.s.font.color.rgb.endsWith("008000"),"Cross-sheet formulas should use green font");
+  assert.ok(exportedWorkbook.Sheets.Inputs.B12.z.includes("[Red]"),"Negative assumption percentages should display in red");
+  assert.ok(exportedWorkbook.Sheets["Forecast CF"].B9.z.includes("[Red]"),"Negative cash outflows should display in red");
+  assert.ok(exportedWorkbook.Sheets.Inputs.B12.s.font.color.rgb.endsWith("1F5FBF"),"Editable assumptions should use blue font");
+  assert.ok(exportedWorkbook.Sheets["Forecast IS"].B5.s.font.color.rgb.endsWith("008000"),"Cross-sheet formulas should use green font");
   assert.ok(wb.Sheets.FCF.A1.v.includes("Free cash flow"),"Dedicated FCF schedule should have a clear heading");
   const firstForecastCol=XLSX.utils.encode_col(p.history.periods.length+1);
   assert.ok(wb.Sheets.FCF[firstForecastCol+"9"].f.includes("Forecast IS"),"FCF NOPAT should link to forecast EBIT");
   assert.ok(wb.Sheets.FCF[firstForecastCol+"13"].f.includes(firstForecastCol+"9"),"UFCF should bridge from NOPAT and cash-flow drivers");
  }finally{
+  if(typeof originalWriteFile==="function")XLSX.writeFile=originalWriteFile;
   process.chdir(original);
   fs.rmSync(dir,{recursive:true,force:true});
  }
