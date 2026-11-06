@@ -20,7 +20,7 @@ test("Excel report generates formula-linked statement, DCF, comps and sensitivit
   const file=window.ModelWorkbook.exportWorkbook(p,f,valuation,ratios);
   assert.ok(fs.existsSync(path.join(dir,file)),"Excel export file should exist");
   const wb=XLSX.readFile(path.join(dir,file),{cellFormula:true});
-  for(const name of ["Cover","Inputs","Historical IS","Historical BS","Historical CF","Forecast IS","Forecast BS","Forecast CF","Ratios","DCF","Comparables","Sensitivity","Scenario Calc","Checks"])assert.ok(wb.SheetNames.includes(name),"Missing worksheet "+name);
+  for(const name of ["Cover","Inputs","Historical IS","Historical BS","Historical CF","Forecast IS","Forecast BS","Forecast CF","FCF","Ratios","DCF","Comparables","Sensitivity","Scenario Calc","Checks"])assert.ok(wb.SheetNames.includes(name),"Missing worksheet "+name);
   const formula=(sheet,cell,includes)=>{
    const c=wb.Sheets[sheet][cell];
    assert.ok(c,"Missing cell "+sheet+"!"+cell);
@@ -48,6 +48,16 @@ test("Excel report generates formula-linked statement, DCF, comps and sensitivit
   formula("Checks","C4","Forecast BS");
   assert.equal(wb.Sheets.Inputs.B12.v,p.assumptions.revenueGrowth);
   assert.equal(wb.Sheets.Inputs.B35.v,"Perpetuity growth");
+  assert.equal(wb.Sheets.Checks.D4.v,"PASS","Check formulas should store readable PASS / REVIEW text");
+  assert.equal(wb.Sheets.Checks.D4.t,"str","Text formula results must remain text cells");
+  assert.ok(wb.Sheets.Inputs.B12.z.includes("[Red]"),"Negative assumption percentages should display in red");
+  assert.ok(wb.Sheets["Forecast CF"].B9.z.includes("[Red]"),"Negative cash outflows should display in red");
+  assert.ok(wb.Sheets.Inputs.B12.s.font.color.rgb.endsWith("1F5FBF"),"Editable assumptions should use blue font");
+  assert.ok(wb.Sheets["Forecast IS"].B5.s.font.color.rgb.endsWith("008000"),"Cross-sheet formulas should use green font");
+  assert.ok(wb.Sheets.FCF.A1.v.includes("Free cash flow"),"Dedicated FCF schedule should have a clear heading");
+  const firstForecastCol=XLSX.utils.encode_col(p.history.periods.length+1);
+  assert.ok(wb.Sheets.FCF[firstForecastCol+"9"].f.includes("Forecast IS"),"FCF NOPAT should link to forecast EBIT");
+  assert.ok(wb.Sheets.FCF[firstForecastCol+"13"].f.includes(firstForecastCol+"9"),"UFCF should bridge from NOPAT and cash-flow drivers");
  }finally{
   process.chdir(original);
   fs.rmSync(dir,{recursive:true,force:true});
@@ -70,19 +80,34 @@ test("selected DCF export is self-contained and contains only the requested work
  }finally{process.chdir(original);fs.rmSync(dir,{recursive:true,force:true});}
 });
 
-test("consolidated report export combines selected modules into one worksheet",t=>{
+test("Excel exports always keep selected modules on separate worksheet tabs",t=>{
  const p=E.defaultProject(),f=E.buildForecast(p.history,p.assumptions,p.forecastYears),r=E.historicalRatios(p.history),v=E.calculateDCF(f,p.history,p.dcf,p.assumptions);
- const original=process.cwd(),dir=fs.mkdtempSync(path.join(os.tmpdir(),"modelforge-single-"));
+ const original=process.cwd(),dir=fs.mkdtempSync(path.join(os.tmpdir(),"modelforge-tabs-"));
  try{
   process.chdir(dir);
   const file=window.ModelWorkbook.exportWorkbook(p,f,v,r,{selectedSheets:["Cover","DCF"],layout:"single"});
   const wb=XLSX.readFile(file,{cellFormula:true});
-  assert.deepEqual(wb.SheetNames,["Full report"]);
-  const rows=XLSX.utils.sheet_to_json(wb.Sheets["Full report"],{header:1,defval:""});
-  const values=rows.flat().map(String);
-  assert.ok(values.includes("Cover"),"Consolidated report should contain the cover section");
-  assert.ok(values.includes("DCF"),"Consolidated report should contain the DCF section");
-  assert.ok(values.includes("Discounted cash flow valuation"),"Consolidated report should retain DCF content");
+  assert.deepEqual(wb.SheetNames,["DCF","Cover"]);
+  assert.ok(wb.Sheets.DCF.B3&&Number.isFinite(wb.Sheets.DCF.B3.v),"Selected DCF sheet should remain readable");
+  assert.equal(wb.Sheets.DCF.B3.f,undefined,"Partial exports should be self-contained value snapshots");
+  assert.ok(wb.Sheets.DCF["A9"].v,"DCF forecast schedule should be included");
+ }finally{process.chdir(original);fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test("selecting all report modules creates one Excel workbook with separate formula-linked tabs",t=>{
+ const p=E.defaultProject(),f=E.buildForecast(p.history,p.assumptions,p.forecastYears),r=E.historicalRatios(p.history),v=E.calculateDCF(f,p.history,p.dcf,p.assumptions);
+ const selected=["Cover","Inputs","Historical IS","Historical BS","Historical CF","Forecast IS","Forecast BS","Forecast CF","FCF","Ratios","DCF","Comparables","Sensitivity","Scenario Calc","Checks"];
+ const original=process.cwd(),dir=fs.mkdtempSync(path.join(os.tmpdir(),"modelforge-all-tabs-"));
+ try{
+  process.chdir(dir);
+  const file=window.ModelWorkbook.exportWorkbook(p,f,v,r,{selectedSheets:selected,layout:"single"});
+  assert.ok(fs.existsSync(file),"One Excel workbook should be written");
+  assert.equal(fs.readdirSync(dir).filter(name=>name.endsWith(".xlsx")).length,1,"All modules must be in one Excel file");
+  const wb=XLSX.readFile(file,{cellFormula:true});
+  assert.equal(wb.SheetNames.length,selected.length,"Every module should have its own worksheet");
+  for(const name of selected)assert.ok(wb.SheetNames.includes(name),"Missing worksheet "+name);
+  assert.ok(wb.Sheets["Forecast IS"].B5.f,"The all-modules export should preserve integrated formulas");
+  assert.ok(wb.Sheets.FCF[XLSX.utils.encode_col(p.history.periods.length+1)+"13"].f,"FCF UFCF bridge should remain formula-driven");
  }finally{process.chdir(original);fs.rmSync(dir,{recursive:true,force:true});}
 });
 

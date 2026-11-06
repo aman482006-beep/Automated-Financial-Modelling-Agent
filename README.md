@@ -17,7 +17,7 @@ The repository uses GitHub Actions for publishing. In Settings → Pages, the pu
 5. Change forecast drivers and horizon. The three statements recalculate together.
 6. Enter DCF and WACC assumptions, choose the terminal method, then review the UFCF build and valuation chart.
 7. Enter observed peer data. Sample peers are clearly labelled synthetic.
-8. Open Export report to choose the exact report modules and export them as separate worksheets or one consolidated sheet. The complete all-tabs workbook retains linked formulas; customised exports are standalone value snapshots. Save and restore a local JSON project file.
+8. Open Export report to choose the report modules. Every selected module exports as its own worksheet in one Excel workbook. Select all modules for the complete linked model; customised exports are self-contained value snapshots. Save and restore a local JSON project file.
 
 ## Included modules
 
@@ -37,19 +37,20 @@ The repository uses GitHub Actions for publishing. In Settings → Pages, the pu
 
 ## Excel model layout
 
-The workbook includes:
+The workbook includes (one worksheet per module in a single .xlsx download):
 - Cover: company / analyst information and linked valuation summary.
 - Inputs: blue-font editable assumptions and DCF parameters; formula-derived cost of equity, capital weights and WACC.
 - Historical IS, Historical BS and Historical CF: imported / user-edited source values.
 - Forecast IS, Forecast BS and Forecast CF: formula-linked forecast schedules.
 - Ratios: formula-linked historical calculations.
+- FCF: a dedicated free-cash-flow worksheet with historical FCF, projected cash flow, forecast FCF, NOPAT, D&A add-back, capex, working-capital investment, UFCF and present value.
 - DCF: one row per forecast year, UFCF, discount factors, terminal value, PV, EV, net debt, equity value and value per share.
 - Comparables: editable peer facts and formula-driven multiples.
 - Sensitivity: linked axes and DCF sensitivity formulas.
 - Scenario Calc: detailed calculations for operating scenarios.
 - Checks: forecast and historical reconciliation checks.
 
-Blue cells are editable source data or assumptions. Derived schedules are Excel formulas. Historical reported figures and peer inputs are deliberately editable facts, not formulas. Excel or compatible spreadsheet software recalculates formulas when opened.
+Blue cells are editable source data or assumptions; green formulas link to other worksheets; black formulas calculate within the current worksheet. Negative amounts, percentages and multiples display in red with parentheses. The dedicated FCF worksheet separates reported / forecast FCF from the unlevered DCF cash-flow bridge. Historical reported figures and peer inputs are deliberately editable facts, not formulas. Excel or compatible spreadsheet software recalculates formulas when opened.
 
 ## Included sample dataset
 

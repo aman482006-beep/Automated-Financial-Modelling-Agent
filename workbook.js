@@ -5,9 +5,9 @@ const E=root.ModelEngine;
 function col(n){let s="";while(n>0){let r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26)}return s}
 function ref(c,r){return col(c)+r}
 function q(sheet){return "'"+sheet.replace(/'/g,"''")+"'"}
-function fcell(ws,cell,formula,value){const raw=String(formula??"");ws[cell]={t:"n",f:raw.startsWith("=")?raw.slice(1):raw,v:Number.isFinite(value)?value:0};}
+function fcell(ws,cell,formula,value){const raw=String(formula??"");const cached=value??0;const type=typeof cached==="string"?"str":typeof cached==="boolean"?"b":"n";ws[cell]={t:type,f:raw.startsWith("=")?raw.slice(1):raw,v:type==="n"?(Number.isFinite(cached)?cached:0):cached};}
 function setStyle(ws,cell,style){if(ws[cell])ws[cell].s=style}
-function setFormat(ws,cell,format){if(ws[cell])ws[cell].z=format;}
+function setFormat(ws,cell,format){if(!ws[cell])return;const formats={"0.0%":"0.0%;[Red](0.0%);-","0.00x":"0.00x;[Red](0.00x);-","0.0x":"0.0x;[Red](0.0x);-","0.000":"0.000;[Red](0.000);-"};ws[cell].z=formats[format]||format;}
 function extendRef(ws,lastRow,lastCol){const range=ws["!ref"]?X.utils.decode_range(ws["!ref"]):{s:{r:0,c:0},e:{r:0,c:0}};range.e.r=Math.max(range.e.r,lastRow-1);range.e.c=Math.max(range.e.c,lastCol-1);ws["!ref"]=X.utils.encode_range(range);}
 const styles={
  title:{font:{name:"Aptos Display",sz:16,bold:true,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:"14263F"}},alignment:{vertical:"center"}},
@@ -15,6 +15,7 @@ const styles={
  header:{font:{name:"Aptos",sz:10,bold:true,color:{rgb:"233750"}},fill:{fgColor:{rgb:"EAF0F7"}},border:{bottom:{style:"thin",color:{rgb:"CBD5E1"}}},alignment:{vertical:"center",wrapText:true}},
  input:{font:{name:"Aptos",sz:10,color:{rgb:"1F5FBF"}},fill:{fgColor:{rgb:"F1F6FF"}}},
  formula:{font:{name:"Aptos",sz:10,color:{rgb:"26384F"}}},
+ link:{font:{name:"Aptos",sz:10,color:{rgb:"008000"}}},
  text:{font:{name:"Aptos",sz:10,color:{rgb:"40516A"}}}
 };
 function addSheet(wb,name,rows,widths){
@@ -26,8 +27,8 @@ function addSheet(wb,name,rows,widths){
 function title(ws,lastCol,titleText){ws["A1"]={v:titleText,t:"s",s:styles.title};ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:lastCol-1}}];ws["!rows"]=ws["!rows"]||[];ws["!rows"][0]={hpt:28};}
 function headerRow(ws,row,cols){for(let c=1;c<=cols;c++)setStyle(ws,ref(c,row),styles.header)}
 function inputCell(ws,cell,value){ws[cell]={v:value??"",t:typeof value==="number"?"n":"s",s:styles.input}}
-function formulaCell(ws,cell,formula,value){fcell(ws,cell,formula,value);setStyle(ws,cell,styles.formula)}
-function styleData(ws,fromRow,toRow,lastCol){for(let r=fromRow;r<=toRow;r++)for(let c=1;c<=lastCol;c++)if(ws[ref(c,r)])setStyle(ws,ref(c,r),c===1?styles.text:styles.formula)}
+function formulaCell(ws,cell,formula,value){fcell(ws,cell,formula,value);setStyle(ws,cell,String(formula??"").includes("!")?styles.link:styles.formula)}
+function styleData(ws,fromRow,toRow,lastCol){for(let r=fromRow;r<=toRow;r++)for(let c=1;c<=lastCol;c++){const cell=ws[ref(c,r)];if(cell)setStyle(ws,ref(c,r),c===1?styles.text:cell.f&&String(cell.f).includes("!")?styles.link:styles.formula)}}
 function addHistorical(wb,titleText,periods,group,items){
  const rows=[[titleText],["Source values · reported / imported"],["Source currency and unit are defined on the Inputs sheet."],["Line item"].concat(periods)];
  items.forEach(([key,label])=>rows.push([label].concat(periods.map((p,i)=>group[key]?.[i]??null))));
@@ -120,6 +121,55 @@ function exportWorkbook(project,forecast,valuation,ratios,options={}){
   formulaCell(fbs,C+17,"="+C+"10-"+C+"16",forecast[j].check);
  }
  for(let j=0;j<n;j++){const C=col(j+2);for(let r=5;r<=17;r++)setFormat(fis,C+r,"#,##0.0;[Red](#,##0.0);-");setFormat(fis,C+"6","0.0%");for(let r=5;r<=17;r++)setFormat(fbs,C+r,"#,##0.0;[Red](#,##0.0);-");for(let r=5;r<=15;r++)setFormat(fcf,C+r,"#,##0.0;[Red](#,##0.0);-");}
+
+ // Dedicated free-cash-flow worksheet: historical FCF, forecast FCF and the unlevered DCF bridge.
+ const fcfRows=[
+  ["Free cash flow analysis"],
+  ["Reported / imported historical figures are blue. Forecast formulas link to the integrated statements and DCF assumptions."],
+  ["Currency / unit",p.currency+" / "+p.unit],
+  ["Line item"].concat(periods,forecast.map(x=>x.year)),
+  ["Cash flow from operations"],
+  ["Capital expenditure (outflow)"],
+  ["Free cash flow (FCF)"],
+  ["EBIT"],
+  ["NOPAT"],
+  ["D&A add-back"],
+  ["Capital expenditure (positive spend)"],
+  ["Change in net working capital"],
+  ["Unlevered free cash flow (UFCF)"],
+  ["Discount factor"],
+  ["Present value of UFCF"]
+ ];
+ const fcfSchedule=addSheet(wb,"FCF",fcfRows,[42].concat(periods.map(()=>14),forecast.map(()=>14)));
+ title(fcfSchedule,periods.length+n+1,"Free cash flow analysis");
+ headerRow(fcfSchedule,4,periods.length+n+1);
+ for(let j=0;j<periods.length;j++){
+  const C=col(j+2),cfo=h.CF.cfo?.[j],capex=h.CF.capex?.[j],reportedFcf=h.CF.fcf?.[j],da=h.IS.da?.[j];
+  const historicalFcf=Number.isFinite(reportedFcf)?reportedFcf:(Number.isFinite(cfo)?cfo:0)+(Number.isFinite(capex)?capex:0);
+  const values={5:cfo,6:capex,7:historicalFcf,8:h.IS.ebit?.[j],10:Number.isFinite(da)?Math.abs(da):null,11:Number.isFinite(capex)?Math.abs(capex):null};
+  for(const [row,value] of Object.entries(values)){
+   if(Number.isFinite(value)){fcfSchedule[C+row]={t:"n",v:value,s:styles.input};}
+  }
+ }
+ for(let j=0;j<n;j++){
+  const sourceCol=col(j+2),targetCol=col(periods.length+j+2);
+  formulaCell(fcfSchedule,targetCol+"5","="+q("Forecast CF")+"!"+sourceCol+"8",forecast[j].cfo);
+  formulaCell(fcfSchedule,targetCol+"6","="+q("Forecast CF")+"!"+sourceCol+"9",-forecast[j].capex);
+  formulaCell(fcfSchedule,targetCol+"7","="+q("Forecast CF")+"!"+sourceCol+"15",forecast[j].fcf);
+  formulaCell(fcfSchedule,targetCol+"8","="+q("Forecast IS")+"!"+sourceCol+"13",forecast[j].ebit);
+  formulaCell(fcfSchedule,targetCol+"9","="+q("Forecast IS")+"!"+sourceCol+"13*(1-'Inputs'!$B$17)",forecast[j].ebit*(1-a.taxRate));
+  formulaCell(fcfSchedule,targetCol+"10","=-"+q("Forecast IS")+"!"+sourceCol+"12",-forecast[j].da);
+  formulaCell(fcfSchedule,targetCol+"11","=-"+q("Forecast CF")+"!"+sourceCol+"9",forecast[j].capex);
+  formulaCell(fcfSchedule,targetCol+"12","="+q("Forecast CF")+"!"+sourceCol+"7",forecast[j].changeNWC);
+  formulaCell(fcfSchedule,targetCol+"13","="+targetCol+"9+"+targetCol+"10-"+targetCol+"11-"+targetCol+"12",valuation.flows[j].ufcf);
+  formulaCell(fcfSchedule,targetCol+"14","=1/(1+'Inputs'!$B$41)^"+(j+1),valuation.flows[j].discountFactor||0);
+  formulaCell(fcfSchedule,targetCol+"15","="+targetCol+"13*"+targetCol+"14",valuation.flows[j].ufcf*(valuation.flows[j].discountFactor||0));
+ }
+ for(let r=5;r<=13;r++)for(let c=2;c<=periods.length+n+1;c++)setFormat(fcfSchedule,ref(c,r),"#,##0.0;[Red](#,##0.0);-");
+ for(let r=15;r<=15;r++)for(let c=2;c<=periods.length+n+1;c++)setFormat(fcfSchedule,ref(c,r),"#,##0.0;[Red](#,##0.0);-");
+ for(let c=2;c<=periods.length+n+1;c++)setFormat(fcfSchedule,ref(c,14),"0.000");
+ extendRef(fcfSchedule,15,periods.length+n+1);
+
  // Formula-linked historical ratios.
  const ratioNames=[["Revenue growth","revenueGrowth"],["Gross margin","grossMargin"],["EBITDA margin","ebitdaMargin"],["EBIT margin","ebitMargin"],["Net margin","netMargin"],["ROE","roe"],["ROA","roa"],["ROCE","roce"],["Current ratio","currentRatio"],["Quick ratio","quickRatio"],["Debt / equity","debtEquity"],["Interest coverage","interestCoverage"],["Asset turnover","assetTurnover"],["Working capital","workingCapital"],["Free cash flow","freeCashFlow"]];
  const ratioRows=[["Historical ratios"],["Calculated formulas link to historical statement inputs."],["Metric"].concat(periods)];
@@ -283,10 +333,10 @@ function exportWorkbook(project,forecast,valuation,ratios,options={}){
  for(let j=0;j<n;j++){const C=col(j+2);checkRows.push(["Forecast balance sheet",forecast[j].year,null,null])}
  for(let j=0;j<periods.length;j++)checkRows.push(["Reported balance sheet",periods[j],null,null]);
  const checks=addSheet(wb,"Checks",checkRows,[32,16,18,18]);title(checks,4,"Model reconciliation checks");headerRow(checks,3,4);
- for(let j=0;j<n;j++){const r=4+j,C=col(j+2);formulaCell(checks,"C"+r,"="+q("Forecast BS")+"!"+C+"17",forecast[j].check);formulaCell(checks,"D"+r,'=IF(ABS(C'+r+')<0.01,"PASS","REVIEW")',Math.abs(forecast[j].check)<.01?1:0)}
- for(let j=0;j<periods.length;j++){const r=4+n+j,C=col(j+2);formulaCell(checks,"C"+r,"="+q("Historical BS")+"!"+C+"10-"+q("Historical BS")+"!"+C+"16",0);formulaCell(checks,"D"+r,'=IF(ABS(C'+r+')<0.01,"PASS","REVIEW")',1)}
+ for(let j=0;j<n;j++){const r=4+j,C=col(j+2);formulaCell(checks,"C"+r,"="+q("Forecast BS")+"!"+C+"17",forecast[j].check);formulaCell(checks,"D"+r,'=IF(ABS(C'+r+')<0.01,"PASS","REVIEW")',Math.abs(forecast[j].check)<.01?"PASS":"REVIEW")}
+ for(let j=0;j<periods.length;j++){const r=4+n+j,C=col(j+2);formulaCell(checks,"C"+r,"="+q("Historical BS")+"!"+C+"10-"+q("Historical BS")+"!"+C+"16",0);formulaCell(checks,"D"+r,'=IF(ABS(C'+r+')<0.01,"PASS","REVIEW")',"PASS")}
  // Cover sheet: concise, linked and presentable.
- const coverRows=[["MODELFORGE | FINANCIAL ANALYSIS REPORT"],["Company",p.name],["Prepared by",p.analyst],["Industry",p.industry],["Valuation date",p.valuationDate],["Currency / unit",p.currency+" / "+p.unit],["Reporting frequency",p.frequency],["Forecast horizon",n+" years"],[""],["VALUATION SUMMARY"],["WACC",""],["Enterprise value",""],["Net debt",""],["Equity value",""],["Value per share",""],[""],["REPORT STRUCTURE"],["Historical statements","Historical IS / Historical BS / Historical CF"],["Forecast statements","Forecast IS / Forecast BS / Forecast CF"],["Valuation","DCF / Comparables / Sensitivity"],["Controls","Inputs / Checks / Scenario Calc"]];
+ const coverRows=[["MODELFORGE | FINANCIAL ANALYSIS REPORT"],["Company",p.name],["Prepared by",p.analyst],["Industry",p.industry],["Valuation date",p.valuationDate],["Currency / unit",p.currency+" / "+p.unit],["Reporting frequency",p.frequency],["Forecast horizon",n+" years"],[""],["VALUATION SUMMARY"],["WACC",""],["Enterprise value",""],["Net debt",""],["Equity value",""],["Value per share",""],[""],["REPORT STRUCTURE"],["Historical statements","Historical IS / Historical BS / Historical CF"],["Forecast statements","Forecast IS / Forecast BS / Forecast CF"],["Free cash flow","FCF · historical FCF, forecast FCF and UFCF bridge"],["Valuation","DCF / Comparables / Sensitivity"],["Controls","Inputs / Checks / Scenario Calc"]];
  const cover=addSheet(wb,"Cover",coverRows,[31,58]);title(cover,2,"MODELFORGE | FINANCIAL ANALYSIS REPORT");
  formulaCell(cover,"B11","="+q("Inputs")+"!B41",valuation.wacc);formulaCell(cover,"B12","="+q("DCF")+"!B"+(terminalRow+3),valuation.enterpriseValue||0);formulaCell(cover,"B13","="+q("DCF")+"!B"+(terminalRow+4),valuation.netDebt);formulaCell(cover,"B14","="+q("DCF")+"!B"+(terminalRow+5),valuation.equityValue||0);formulaCell(cover,"B15","="+q("DCF")+"!B"+(terminalRow+7),valuation.perShare||0);
  [10,17].forEach(r=>setStyle(cover,"A"+r,styles.section));
@@ -296,7 +346,7 @@ function exportWorkbook(project,forecast,valuation,ratios,options={}){
  const requested=Array.isArray(options.selectedSheets)?options.selectedSheets:[];
  const selected=allSheets.filter(name=>requested.includes(name));
  if(Array.isArray(options.selectedSheets)&&!selected.length)throw new Error("Choose at least one report section to export.");
- const layout=options.layout==="single"?"single":"tabs";
+ const layout="tabs"; // Always keep each selected module on its own worksheet.
  let output=wb;
  const completeSelection=selected.length===allSheets.length;
  const makeSnapshot=source=>{
@@ -308,7 +358,7 @@ function exportWorkbook(project,forecast,valuation,ratios,options={}){
   });
   return copy;
  };
- if(Array.isArray(options.selectedSheets)&&!(layout==="tabs"&&completeSelection)){
+ if(Array.isArray(options.selectedSheets)&&!completeSelection){
   const names=selected;
   if(layout==="tabs"){
    output=X.utils.book_new();

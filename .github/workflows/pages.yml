@@ -30,10 +30,16 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Run financial engine and Excel formula tests
         run: npm test
+      - name: Assemble static site with local Excel runtime
+        run: |
+          mkdir -p _site/vendor _site/sample-data
+          cp index.html styles.css engine.js workbook.js app-main.js _site/
+          cp node_modules/xlsx-js-style/dist/xlsx.bundle.js _site/vendor/xlsx.bundle.js
+          cp sample-data/aster_industries.csv _site/sample-data/aster_industries.csv
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
   deploy:
     environment:
       name: github-pages
