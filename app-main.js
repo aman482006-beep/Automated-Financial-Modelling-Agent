@@ -444,8 +444,17 @@ function bindEvents(){
  $("#resetDemo").addEventListener("click",()=>{if(confirm("Reset all changes and restore the sample project?"))loadSample()});
 }
 function init(){
- bindEvents();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();showPage("overview");
- window.addEventListener("resize",drawCharts);
+ bindEvents();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();
+ showPage("overview");
+ rebuild();
+ window.addEventListener("resize",()=>window.requestAnimationFrame(drawCharts),{passive:true});
+ // The first calculation can run before the browser has assigned final canvas dimensions.
+ // Draw again after layout so the initial dashboard never leaves blank charts.
+ if(typeof window.requestAnimationFrame==="function"){
+  window.requestAnimationFrame(()=>window.requestAnimationFrame(drawCharts));
+ }else{
+  setTimeout(drawCharts,0);
+ }
  window.ModelForge={getProject:()=>project,getForecast:()=>forecast,getValuation:()=>valuation,selfTest:()=>E.validateHistory(project.history)};
 }
 init();
