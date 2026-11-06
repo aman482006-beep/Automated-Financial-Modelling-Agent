@@ -15,10 +15,10 @@ test("Excel report generates formula-linked statement, DCF, comps and sensitivit
  const ratios=E.historicalRatios(p.history);
  const valuation=E.calculateDCF(f,p.history,p.dcf,p.assumptions);
  const original=process.cwd(),dir=fs.mkdtempSync(path.join(os.tmpdir(),"modelforge-xlsx-"));
+ let exportedWorkbook=null;
+ const originalWriteFile=XLSX.writeFile;
  try{
   process.chdir(dir);
-  let exportedWorkbook=null;
-  const originalWriteFile=XLSX.writeFile;
   XLSX.writeFile=(book,...args)=>{exportedWorkbook=book;return originalWriteFile.call(XLSX,book,...args);};
   const file=window.ModelWorkbook.exportWorkbook(p,f,valuation,ratios);
   assert.ok(fs.existsSync(path.join(dir,file)),"Excel export file should exist");
