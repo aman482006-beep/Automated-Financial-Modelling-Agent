@@ -46,3 +46,14 @@ test("both Excel and CSV-pack export libraries have local deployment fallbacks",
  assert.ok(html.includes('"./vendor/xlsx.bundle.js"'));
  assert.ok(html.includes('"./vendor/jszip.min.js"'));
 });
+
+
+test("sensitivity tables pass an array of column headers to the shared table renderer",()=>{
+ const start=app.indexOf("function renderSensitivity()");
+ const end=app.indexOf("function renderAssistantContext",start);
+ const sensitivity=app.slice(start,end);
+ assert.ok(sensitivity.includes('table(headers,rows)'),"WACC sensitivity must use the assembled header array");
+ assert.ok(sensitivity.includes('table(["Revenue growth ↓ / EBITDA margin →",...margins.map(x=>pct(x))],rows)'),"Operating sensitivity must pass one header array and one row array");
+ assert.doesNotMatch(sensitivity,/table\(method==="growth"\?/);
+ assert.doesNotMatch(sensitivity,/table\("Revenue growth/);
+});
