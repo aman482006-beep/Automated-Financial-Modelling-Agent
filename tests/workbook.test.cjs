@@ -19,7 +19,7 @@ test("Excel report generates formula-linked statement, DCF, comps and sensitivit
   process.chdir(dir);
   const file=window.ModelWorkbook.exportWorkbook(p,f,valuation,ratios);
   assert.ok(fs.existsSync(path.join(dir,file)),"Excel export file should exist");
-  const wb=XLSX.readFile(path.join(dir,file),{cellFormula:true});
+  const wb=XLSX.readFile(path.join(dir,file),{cellFormula:true,cellStyles:true});
   for(const name of ["Cover","Inputs","Historical IS","Historical BS","Historical CF","Forecast IS","Forecast BS","Forecast CF","FCF","Ratios","DCF","Comparables","Sensitivity","Scenario Calc","Checks"])assert.ok(wb.SheetNames.includes(name),"Missing worksheet "+name);
   const formula=(sheet,cell,includes)=>{
    const c=wb.Sheets[sheet][cell];
