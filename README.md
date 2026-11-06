@@ -31,7 +31,7 @@ The repository uses GitHub Actions for publishing. In Settings → Pages, the pu
 - Trading comparables: EV/Revenue, EV/EBITDA, EV/EBIT, P/E and P/B with median and average statistics.
 - Sensitivity: WACC / perpetual growth, WACC / exit multiple and revenue-growth / EBITDA-margin scenarios.
 - Model assistant: deterministic responses tied to active model inputs and calculations.
-- Export centre: choose the executive cover, assumptions, historical statements, forecast statements, ratios, DCF, comparables, sensitivity / scenario analysis and checks; export selected modules as separate tabs or one consolidated sheet. The complete all-tabs Excel export preserves formulas, while selected exports are standalone value snapshots. A full CSV report pack is also available.
+- Export centre: choose the executive cover, assumptions, historical statements, forecast statements, ratios, DCF, comparables, sensitivity / scenario analysis and checks; export selected modules as separate worksheet tabs in one Excel workbook. The complete all-tabs Excel export preserves formulas, while selected exports are standalone value snapshots. A full CSV report pack is also available; its ZIP helper is bundled locally for the Pages deployment.
 - Themes: Light, Navy, Midnight, Emerald, Graphite and Warm paper.
 - Local project handling: localStorage autosave, JSON project download and restore.
 

@@ -35,6 +35,7 @@ jobs:
           mkdir -p _site/vendor _site/sample-data
           cp index.html styles.css engine.js workbook.js app-main.js _site/
           cp node_modules/xlsx-js-style/dist/xlsx.bundle.js _site/vendor/xlsx.bundle.js
+          cp node_modules/jszip/dist/jszip.min.js _site/vendor/jszip.min.js
           cp sample-data/aster_industries.csv _site/sample-data/aster_industries.csv
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

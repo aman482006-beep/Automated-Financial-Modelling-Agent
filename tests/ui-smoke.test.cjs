@@ -40,3 +40,9 @@ test("export module select-all label stays accurate after individual changes",()
  assert.ok(app.includes('$$(".export-module").forEach(box=>box.addEventListener("change",syncExportSelectAllLabel))'));
  assert.ok(app.includes('boxes.every(box=>box.checked)?"Deselect all":"Select all"'));
 });
+
+
+test("both Excel and CSV-pack export libraries have local deployment fallbacks",()=>{
+ assert.ok(html.includes('"./vendor/xlsx.bundle.js"'));
+ assert.ok(html.includes('"./vendor/jszip.min.js"'));
+});
