@@ -32,3 +32,11 @@ test("theme, CSV, project backup and formula workbook controls are mounted",()=>
  assert.ok(html.includes('await loadScript("./workbook.js")'));
  assert.ok(html.includes('await loadScript("./app-main.js")'));
 });
+
+
+test("export module select-all label stays accurate after individual changes",()=>{
+ assert.ok(html.includes('id="exportSelectAll">Deselect all'));
+ assert.ok(app.includes("function syncExportSelectAllLabel()"));
+ assert.ok(app.includes('$$(".export-module").forEach(box=>box.addEventListener("change",syncExportSelectAllLabel))'));
+ assert.ok(app.includes('boxes.every(box=>box.checked)?"Deselect all":"Select all"'));
+});

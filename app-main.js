@@ -421,11 +421,18 @@ function bindEvents(){
  $("#exportClose").addEventListener("click",closeExportCenter);
  $("#exportCancel").addEventListener("click",closeExportCenter);
  $("#exportGenerate").addEventListener("click",generateExcelReport);
+ function syncExportSelectAllLabel(){
+  const boxes=$(".export-module");
+  if(!boxes.length)return;
+  $("#exportSelectAll").textContent=boxes.every(box=>box.checked)?"Deselect all":"Select all";
+ }
  $("#exportSelectAll").addEventListener("click",()=>{
-  const boxes=$$(".export-module"),select=boxes.some(box=>!box.checked);
+  const boxes=$(".export-module"),select=boxes.some(box=>!box.checked);
   boxes.forEach(box=>box.checked=select);
-  $("#exportSelectAll").textContent=select?"Deselect all":"Select all";
+  syncExportSelectAllLabel();
  });
+ $(".export-module").forEach(box=>box.addEventListener("change",syncExportSelectAllLabel));
+ syncExportSelectAllLabel();
  $$("[name=terminalMethod]").forEach(el=>el.addEventListener("change",()=>{project.dcf.terminalMethod=el.value;renderTerminal();rebuild();persist()}));
  $("#addPeer").addEventListener("click",()=>{project.peers.push({name:"New peer — enter observed data",ev:0,revenue:0,ebitda:0,ebit:0,netIncome:0,marketCap:0,bookEquity:0,synthetic:false});renderPeers();persist()});
  $("#resetPeers").addEventListener("click",()=>{project.peers=clone(E.DEFAULT_PEERS);renderPeers();persist()});
