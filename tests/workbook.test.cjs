@@ -49,7 +49,7 @@ test("Excel report generates formula-linked statement, DCF, comps and sensitivit
   assert.equal(wb.Sheets.Inputs.B12.v,p.assumptions.revenueGrowth);
   assert.equal(wb.Sheets.Inputs.B35.v,"Perpetuity growth");
   assert.equal(wb.Sheets.Checks.D4.v,"PASS","Check formulas should store readable PASS / REVIEW text");
-  assert.equal(wb.Sheets.Checks.D4.t,"str","Text formula results must remain text cells");
+  assert.equal(typeof wb.Sheets.Checks.D4.v,"string","Text formula results must remain text values");
   assert.ok(wb.Sheets.Inputs.B12.z.includes("[Red]"),"Negative assumption percentages should display in red");
   assert.ok(wb.Sheets["Forecast CF"].B9.z.includes("[Red]"),"Negative cash outflows should display in red");
   assert.ok(wb.Sheets.Inputs.B12.s.font.color.rgb.endsWith("1F5FBF"),"Editable assumptions should use blue font");

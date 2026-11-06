@@ -28,6 +28,7 @@ test("mobile navigation keeps every tab visible in a horizontal scroll strip",()
 
 test("theme, CSV, project backup and formula workbook controls are mounted",()=>{
  for(const id of ["themeSelect","csvExport","saveProject","loadProjectFile","excelExport","fileInput","applyMapping","chatForm"])assert.ok(html.includes('id="'+id+'"'),"Missing control: "+id);
- assert.ok(html.indexOf('src="./engine.js"')<html.indexOf('src="./workbook.js"'));
- assert.ok(html.indexOf('src="./workbook.js"')<html.indexOf('src="./app-main.js"'));
+ assert.ok(html.includes('await loadScript("./engine.js")'));
+ assert.ok(html.includes('await loadScript("./workbook.js")'));
+ assert.ok(html.includes('await loadScript("./app-main.js")'));
 });
