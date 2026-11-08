@@ -166,7 +166,7 @@ test("mobile viewport can navigate and read the financial model", async () => {
     assert.equal(await page.locator("#page-dcf").isVisible(), true);
     assert.ok(await page.locator("#dcfEV").isVisible());
     await page.locator('#nav [data-page="data"]').click();
-    assert.equal(await page.locator("#fileInput").isVisible(), true);
+    assert.equal(await page.locator("#importPanel").isVisible(), true);
   } finally {
     await page.close();
   }
