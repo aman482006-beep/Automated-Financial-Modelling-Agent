@@ -44,7 +44,7 @@ function sym(){return symbols[project.profile.currency]||project.profile.currenc
 function cash(v,d=1){return Number.isFinite(v)?sym()+fmt(v,d):"—"}
 function showPage(page){const id="page-"+page;if(!$("#"+id))return;$$(".page").forEach(x=>x.classList.toggle("active",x.id===id));$$(".nav-btn").forEach(x=>{const active=x.dataset.page===page;x.classList.toggle("active",active);if(active)x.setAttribute("aria-current","page");else x.removeAttribute("aria-current")});const labels={overview:"Overview",data:"Enter data",history:"History",model:"Forecast",dcf:"DCF",comps:"Peers",sensitivity:"Scenarios",assistant:"Assistant",investors:"Investor frameworks"};$("#pageTitle").textContent=labels[page]||page;window.scrollTo({top:0,behavior:"smooth"});if(["overview","history","dcf"].includes(page))drawCharts()}
 document.addEventListener("click",e=>{const b=e.target.closest("[data-page]");if(b){e.preventDefault();showPage(b.dataset.page)}});
-function syncProfile(){const p=project.profile;$("#companyName").value=p.name||"";$("#analystName").value=p.analyst||"";$("#industry").value=p.industry||"";$("#valuationDate").value=p.valuationDate||"";$("#currency").value=p.currency||"INR";$("#unit").value=p.unit||"millions";$("#frequency").value=p.frequency||"Annual";$("#shares").value=p.sharesOutstanding??100;$("#sideCompany").textContent=p.name||"Untitled project";$("#overviewCompany").textContent=p.name||"Untitled project";$("#themeSelect").value=project.theme||"light";document.body.dataset.theme=project.theme||"light"}
+function syncProfile(){const p=project.profile;$("#companyName").value=p.name||"";$("#analystName").value=p.analyst||"";$("#industry").value=p.industry||"";$("#valuationDate").value=p.valuationDate||"";$("#currency").value=p.currency||"INR";$("#unit").value=p.unit||"millions";$("#frequency").value=p.frequency||"Annual";$("#shares").value=p.sharesOutstanding??"";$("#sideCompany").textContent=p.name||"Untitled project";$("#overviewCompany").textContent=p.name||"Untitled project";$("#themeSelect").value=project.theme||"light";document.body.dataset.theme=project.theme||"light"}
 function getLatest(g,k){const arr=project.history[g]?.[k]||[];const v=arr[arr.length-1];return v===null?null:n(v)}
 function rebuild(){
  project.dcf.sharesOutstanding=n(project.profile.sharesOutstanding);
@@ -310,6 +310,7 @@ async function fileArrayBuffer(file){
  });
 }
 async function importStatements(files){
+ window.ModelForgeLastImportNotes=[];
  if(!files.length)return;
  setImportStatus("Reading "+files.length+" file(s) and detecting the statement layout…");
  let records=[],screenerImport=null,filesLoaded=0;
