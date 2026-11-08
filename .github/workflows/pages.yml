@@ -48,6 +48,10 @@ jobs:
           git push origin "HEAD:${GITHUB_HEAD_REF}"
           gh workflow run pages.yml --ref "${GITHUB_HEAD_REF}"
 
+      - name: Generate an ephemeral lockfile for read-only fork PRs
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && hashFiles('package-lock.json') == ''
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund --lockfile-version=3
+
       - name: Require a lockfile
         run: test -s package-lock.json
 
