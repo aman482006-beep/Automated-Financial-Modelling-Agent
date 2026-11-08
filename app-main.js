@@ -520,7 +520,7 @@ function bindEvents(){
  $("#manualStatementSelect").addEventListener("change",renderManualEntry);
  $("#addManualPeriod").addEventListener("click",addManualPeriod);
  $("#saveManualEntry").addEventListener("click",saveManualEntry);
- $("#startBlank").addEventListener("click",startBlank);
+ 
  $("#chooseExistingCompany").addEventListener("click",showExistingCompanyPicker);
  $("#loadCompanyData").addEventListener("click",()=>{showPage("data");$("#importPanel").scrollIntoView({behavior:"smooth",block:"start"});$("#fileInput").click()});
  $("#universeNifty100").addEventListener("click",()=>setUniverseSize(100));
