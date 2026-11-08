@@ -320,3 +320,21 @@ test("model readiness blocks an unreconciled latest balance sheet", () => {
   assert.ok(result.blockers.some(x=>x.includes("does not reconcile")));
   assert.throws(()=>E.buildForecast(p.history,p.assumptions,5),/does not reconcile/);
 });
+
+
+test("Screener importer does not assume generic other liabilities are current", () => {
+  const rows=Array.from({length:85},()=>[]);
+  const put=(row,values)=>{rows[row-1]=values;};
+  put(15,["PROFIT & LOSS"]);put(16,["Report Date",43190]);put(17,["Sales",1000]);
+  put(55,["BALANCE SHEET"]);put(56,["Report Date",43190]);
+  put(57,["Equity Share Capital",100]);put(58,["Reserves",300]);put(59,["Borrowings",80]);
+  put(60,["Other Liabilities",50]);put(61,["Total",700]);put(62,["Net Block",200]);
+  put(63,["Capital Work in Progress",10]);put(64,["Other Assets",300]);put(65,["Total",700]);
+  put(66,["Receivables",70]);put(67,["Inventory",80]);put(68,["Cash & Bank",60]);
+  put(80,["CASH FLOW"]);put(81,["Report Date",43190]);put(82,["Cash from Operating Activity",100]);
+  put(83,["Cash from Investing Activity",-50]);put(84,["Cash from Financing Activity",-20]);
+  const parsed=E.parseScreenerDataSheet(rows);
+  assert.ok(parsed.records.some(record=>record.label==="Unclassified other liabilities"&&record.value===50));
+  const h=E.historyFromRecords(parsed.records,{});
+  assert.equal(h.BS.otherLiabilities[0],null);
+});
