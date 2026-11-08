@@ -309,3 +309,14 @@ test("missing FCF remains unavailable when only CFO and CFI are supplied", () =>
   ],{});
   assert.equal(E.historicalRatios(h)[0].freeCashFlow,null);
 });
+
+
+test("model readiness blocks an unreconciled latest balance sheet", () => {
+  const p=E.defaultProject();
+  const latest=p.history.periods.length-1;
+  p.history.BS.totalAssets[latest]+=10;
+  const result=E.modelReadiness(p.history,"Annual");
+  assert.equal(result.ready,false);
+  assert.ok(result.blockers.some(x=>x.includes("does not reconcile")));
+  assert.throws(()=>E.buildForecast(p.history,p.assumptions,5),/does not reconcile/);
+});
