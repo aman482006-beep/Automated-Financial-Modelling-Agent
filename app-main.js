@@ -356,7 +356,11 @@ function rowsForForecast(g){
 }
 function downloadBlob(name,blob){const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)}
 async function exportCsvPack(){
- if(!window.JSZip){toast("CSV pack tool unavailable. Reload with internet access.");return}
+ if(!valuation?.valid){
+  toast("Report export blocked: complete the required annual inputs and fix DCF validation warnings first.");
+  return;
+ }
+ if(!window.JSZip){toast("CSV pack tool unavailable. The local ZIP library may be missing.");return}
  const z=new JSZip(),p=project.profile;
  z.file("00_Report_Cover.csv",csvText([["ModelForge Financial Analysis Report"],["Company",p.name],["Prepared by",p.analyst],["Industry",p.industry],["Valuation date",p.valuationDate],["Currency",p.currency],["Reporting unit",p.unit],["Frequency",p.frequency]]));
  z.file("01_Assumptions.csv",csvText([["Assumption","Value"],...Object.entries(project.assumptions),...Object.entries(project.dcf)]));
@@ -383,6 +387,10 @@ function generateExcelReport(){
   if(!window.ModelWorkbook?.exportWorkbook)throw new Error("Excel report builder is unavailable. Refresh the page and try again.");
   const selectedSheets=Array.from(new Set($$(".export-module:checked").flatMap(el=>String(el.dataset.sheets||"").split("|").filter(Boolean))));
   if(!selectedSheets.length)throw new Error("Select at least one report section.");
+  const valuationSheets=new Set(["Forecast IS","Forecast BS","Forecast CF","FCF","DCF","Sensitivity","Scenario Calc","Comparables"]);
+  if(selectedSheets.some(sheet=>valuationSheets.has(sheet))&&!valuation?.valid){
+   throw new Error("Model export blocked: complete the required annual inputs and resolve DCF validation warnings before exporting forecasts or valuation.");
+  }
   const layout="tabs";
   const filename=window.ModelWorkbook.exportWorkbook(project,forecast,valuation,ratios,{selectedSheets,layout});
   closeExportCenter();
