@@ -18,6 +18,7 @@
       <button type="button" class="nav-btn" data-page="dcf"><span>◈</span> DCF</button>
       <button type="button" class="nav-btn" data-page="comps"><span>▥</span> Peers</button>
       <button type="button" class="nav-btn" data-page="sensitivity"><span>▧</span> Scenarios</button>
+      <button type="button" class="nav-btn" data-page="investors"><span>◎</span> Investor frameworks</button>
       <button type="button" class="nav-btn" data-page="assistant"><span>✳</span> Assistant</button>
     </nav>
     <div class="sidebar-bottom"><span class="online-dot"></span> Calculation engine ready<small>All calculations run in your browser</small></div>
@@ -115,6 +116,65 @@
         <div class="two-col"><article class="panel chat-panel"><div class="chat-head"><b>✳ ModelForge analyst</b><small>Model-aware assistant · no external LLM connected</small></div><div id="chatMessages" class="chat-messages"><div class="assistant-message">I can explain your revenue forecast, cash flow, valuation bridge, assumptions and validation warnings. Answers use the current model data.</div></div><div class="prompt-chips"><button type="button" data-prompt="Explain the revenue forecast and key drivers.">Revenue forecast</button><button type="button" data-prompt="What is driving free cash flow?">Free cash flow</button><button type="button" data-prompt="Which assumptions have the biggest impact on valuation?">Valuation drivers</button><button type="button" data-prompt="Identify model risks and validation warnings.">Model risks</button></div><form id="chatForm" class="chat-form"><input id="chatInput" placeholder="Ask about the active model…" autocomplete="off"><button class="btn btn-primary" type="submit">Send</button></form></article>
         <article class="panel"><div class="panel-heading"><div><h2>Live model context</h2><p>Values available to the assistant</p></div></div><div id="assistantContext"></div><div class="notice"><b>Secure AI connection</b><p>This Pages version uses deterministic, local responses grounded in the model. A Gemini or other LLM integration needs a separately hosted API so credentials are never exposed in browser code.</p></div></article></div>
       </section>
+
+      <section class="page" id="page-investors">
+        <div class="eyebrow">08 / INVESTMENT THINKING</div>
+        <div class="page-heading">
+          <div><h1>Investor frameworks</h1><p>Four distinct ways to pressure-test a company before trusting the numbers.</p></div>
+          <span class="tag">ANALYST CHECKLISTS</span>
+        </div>
+        <div class="panel investor-intro">
+          <b>Use the frameworks as questions, not as borrowed conviction.</b>
+          <p>These are concise summaries of well-known investing disciplines. They are not quotes, endorsements, personal recommendations, or simulations of the investors. ModelForge's assistant remains a local, deterministic tool grounded in the active model.</p>
+        </div>
+        <div class="investor-framework-grid">
+          <article class="investor-card">
+            <div class="investor-portrait"><img src="./assets/investors/benjamin-graham.svg" alt="Benjamin Graham portrait" loading="lazy"></div>
+            <div class="investor-copy">
+              <span class="investor-kicker">VALUE · MARGIN OF SAFETY</span>
+              <h2>Benjamin Graham</h2>
+              <p>Start with what the business owns and earns, not the story. Estimate conservative value, test the downside, and demand a meaningful gap between value and price.</p>
+              <ul><li>What is normalized earning power?</li><li>What does the balance sheet protect?</li><li>How much margin of safety remains?</li></ul>
+              <button type="button" class="text-link" data-page="dcf">Review the DCF →</button>
+            </div>
+          </article>
+          <article class="investor-card">
+            <div class="investor-portrait"><img src="./assets/investors/warren-buffett.svg" alt="Warren Buffett portrait" loading="lazy"></div>
+            <div class="investor-copy">
+              <span class="investor-kicker">QUALITY · CAPITAL ALLOCATION</span>
+              <h2>Warren Buffett</h2>
+              <p>Look for durable competitive advantages, strong economics, understandable businesses, and management that allocates capital rationally over time.</p>
+              <ul><li>Are returns on capital high and durable?</li><li>Can the business reinvest at attractive rates?</li><li>Do reported earnings convert into cash?</li></ul>
+              <button type="button" class="text-link" data-page="model">Review the forecast →</button>
+            </div>
+          </article>
+          <article class="investor-card">
+            <div class="investor-portrait"><img src="./assets/investors/charlie-munger.svg" alt="Charlie Munger portrait" loading="lazy"></div>
+            <div class="investor-copy">
+              <span class="investor-kicker">INVERSION · AVOIDING ERROR</span>
+              <h2>Charlie Munger</h2>
+              <p>Invert the problem. Instead of asking only how the company wins, identify what could break the thesis, destroy capital, or make the forecast fragile.</p>
+              <ul><li>What could permanently impair the business?</li><li>Which incentives or dependencies are dangerous?</li><li>What evidence would disprove the thesis?</li></ul>
+              <button type="button" class="text-link" data-page="sensitivity">Stress-test scenarios →</button>
+            </div>
+          </article>
+          <article class="investor-card">
+            <div class="investor-portrait"><img src="./assets/investors/peter-lynch.svg" alt="Peter Lynch portrait" loading="lazy"></div>
+            <div class="investor-copy">
+              <span class="investor-kicker">BUSINESS UNDERSTANDING · GROWTH</span>
+              <h2>Peter Lynch</h2>
+              <p>Understand how the company makes money, identify the real growth driver, and test whether the growth and valuation assumptions are still reasonable.</p>
+              <ul><li>Can the business model be explained simply?</li><li>What evidence supports the growth runway?</li><li>Does the valuation already price in success?</li></ul>
+              <button type="button" class="text-link" data-page="history">Review historical performance →</button>
+            </div>
+          </article>
+        </div>
+        <div class="panel investor-more">
+          <b>More frameworks to add</b>
+          <p>Aswath Damodaran · Howard Marks · Ray Dalio. Their profiles can be added when their portrait cutouts are supplied.</p>
+        </div>
+      </section>
+
       <footer>MODELFORGE · INVESTMENT ANALYSIS WORKSPACE <span>Use as an analytical aid; verify source data and assumptions independently.</span></footer>
     </div>
   </main>
