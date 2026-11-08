@@ -16,12 +16,14 @@ concurrency:
 
 jobs:
   build:
+    # Internal PRs are dispatched by bootstrap-pr.yml after the first lockfile
+    # is committed. Fork PRs run this workflow directly with read-only access.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     name: Browser, financial engine and Excel checks
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
-      contents: write
-      actions: write
+      contents: read
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -35,19 +37,6 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Generate and commit the initial npm lockfile
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && hashFiles('package-lock.json') == ''
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          git commit -m "build: add reproducible npm dependency lockfile"
-          git push origin "HEAD:${GITHUB_HEAD_REF}"
-          gh workflow run pages.yml --ref "${GITHUB_HEAD_REF}"
-
       - name: Generate an ephemeral lockfile for read-only fork PRs
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && hashFiles('package-lock.json') == ''
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund --lockfile-version=3
@@ -56,7 +45,7 @@ jobs:
         run: test -s package-lock.json
 
       - name: Install exact locked dependencies
-        run: npm ci --no-audit --no-fund
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Validate JavaScript source
         run: |
