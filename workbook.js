@@ -39,8 +39,8 @@ function addHistorical(wb,titleText,periods,group,items){
 function exportWorkbook(project,forecast,valuation,ratios,options={}){
  if(!X)throw new Error("Excel writer is not available. Ensure the local Excel library is loaded.");
  const valuationSheets=new Set(["Forecast IS","Forecast BS","Forecast CF","FCF","DCF","Sensitivity","Scenario Calc","Comparables"]);
- const selected=Array.isArray(options.selectedSheets)?options.selectedSheets:null;
- if(!valuation?.valid&&(!selected||selected.some(sheet=>valuationSheets.has(sheet)))){
+ const requestedValuationSheets=Array.isArray(options.selectedSheets)?options.selectedSheets:null;
+ if(!valuation?.valid&&(!requestedValuationSheets||requestedValuationSheets.some(sheet=>valuationSheets.has(sheet)))){
   throw new Error("Cannot export forecast or valuation sheets until the model passes annual data and DCF validation.");
  }
  const p=project.profile,h=project.history,a=project.assumptions,d=project.dcf,n=forecast.length,periods=h.periods,lastHist=h.periods.length,wb=X.utils.book_new();
