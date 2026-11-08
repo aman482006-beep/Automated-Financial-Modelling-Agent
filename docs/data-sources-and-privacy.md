@@ -36,7 +36,7 @@ Aster Industries and the sample peer companies are fictional demonstration data.
 
 ## Bundled NSE company universe
 
-The browser app bundles a **security directory**, not company financial statements. The directory contains 200 NSE-listed companies from the Nifty 200 constituent snapshot checked as at **6 November 2026**. Each entry contains issuer name, NSE symbol, sector and a Nifty 100 membership flag. The Nifty 100 picker filters the same universe to its 100 members.
+The browser app bundles a **security directory**, not company financial statements. The directory contains 200 companies shown in the Nifty 200 constituent table snapshot dated **6 November 2026**. Each entry contains issuer name, NSE symbol, sector and a Nifty 100 membership flag. The Nifty 100 picker filters the same universe to its 100 members. The 200 symbols and 100-symbol subset were cross-checked against the published tables for exact counts and membership. This was not an automated download / hash verification of NSE’s raw CSV files; recheck the current official CSV before using the snapshot.
 
 The index names do not represent a live, daily rank of the largest 100 / 200 companies by market capitalisation:
 
@@ -49,6 +49,9 @@ Sources:
 - [NSE — Nifty 200](https://www.nseindia.com/static/products-services/indices-nifty200-index)
 - [NSE — Nifty 100 constituent CSV](https://nsearchives.nseindia.com/content/indices/ind_nifty100list.csv)
 - [NSE — Nifty 200 constituent CSV](https://nsearchives.nseindia.com/content/indices/ind_nifty200list.csv)
+- [Displayed 6 Nov 2026 Nifty 100 constituent table](https://tipsheet.markets/indices/nifty-100/)
+- [Displayed 6 Nov 2026 Nifty 200 constituent table](https://tipsheet.markets/indices/nifty-200/)
+- [NSE — index data subscription and proprietary-rights statement](https://www.nse.in/static/nse-indices/index-data-subscription)
 - [Constituent snapshot used for the 6 November 2026 directory — Nifty 100](https://tipsheet.markets/indices/nifty-100/)
 - [Constituent snapshot used for the 6 November 2026 directory — Nifty 200](https://tipsheet.markets/indices/nifty-200/)
 
@@ -56,4 +59,4 @@ The selector preloads **no** historical financials, prices, market-cap values, e
 
 Use issuer annual reports, quarterly results and exchange filings, or a properly licensed financial-data provider. The app does not scrape third-party financial portals or redistribute their proprietary financial data. Before relying on an issuer model, check the uploaded workbook's issuer name, NSE symbol, standalone / consolidated basis, period, currency, unit, restatements and filing source. An uploaded document is not independently authenticated by ModelForge.
 
-The bundled directory is a dated snapshot, not a live index service. Refresh it against the current NSE constituent downloads when the index rebalances; do not use it as a current-market-cap ranking or assume membership remains unchanged.
+NSE Indices states that it retains proprietary rights in index names, compilation and constituent composition and provides licensing / data-subscription pathways. A developer should obtain any rights required for institutional or commercial redistribution; bundling a public snapshot does not itself grant those rights. The bundled directory is a dated snapshot, not a live index service. Refresh it against current NSE constituent downloads when the index rebalances; do not use it as a current-market-cap ranking or assume membership remains unchanged.
