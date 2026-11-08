@@ -2,7 +2,8 @@
 "use strict";
 const E=window.ModelEngine,$=s=>document.querySelector(s),$$=s=>Array.from(document.querySelectorAll(s));
 const KEY="modelforge.project.v2",symbols={INR:"₹",USD:"$",EUR:"€",GBP:"£",SGD:"S$"};
-let project=normaliseProject(loadSaved()||E.defaultProject()),forecast=[],ratios=[],valuation,noticeTimer;
+let project=normaliseProject(loadSaved()||E.defaultProject()),forecast=[],ratios=[],valuation,modelStatus,noticeTimer;
+const EMPTY_VALUATION={valid:false,errors:["Complete the required historical inputs before calculating valuation."],wacc:null,costEquity:null,equityWeight:null,debtWeight:null,flows:[],pvForecast:null,terminalValue:null,pvTerminal:null,enterpriseValue:null,netDebt:null,equityValue:null,perShare:null};
 
 function normaliseProject(p){
  p=p&&typeof p==="object"?p:{};
@@ -24,6 +25,9 @@ function normaliseProject(p){
  p.peers=Array.isArray(p.peers)?p.peers:E.clone(E.DEFAULT_PEERS);
  p.mapping=p.mapping&&typeof p.mapping==="object"?p.mapping:{};
  p.rawRecords=Array.isArray(p.rawRecords)?p.rawRecords:[];
+ p.importMeta=p.importMeta&&typeof p.importMeta==="object"?p.importMeta:{};
+ p.importMeta.sourceFiles=Array.isArray(p.importMeta.sourceFiles)?p.importMeta.sourceFiles:[];
+ p.importMeta.sourceNotes=Array.isArray(p.importMeta.sourceNotes)?p.importMeta.sourceNotes:[];
  p.forecastYears=Number(p.forecastYears)||5;
  p.theme=p.theme||"light";
  return p;
@@ -34,7 +38,7 @@ function persist(){try{localStorage.setItem(KEY,JSON.stringify(project));$("#sav
 function toast(msg){const el=$("#toast");el.textContent=msg;el.classList.add("show");clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>el.classList.remove("show"),2500)}
 function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function n(v){return E.num(v)}
-function fmt(v,d=1){return E.formatNumber(Number(v),d)}
+function fmt(v,d=1){return v===null||v===undefined||v===""?"—":E.formatNumber(Number(v),d)}
 function pct(v,d=1){return Number.isFinite(v)?(v*100).toFixed(d)+"%":"—"}
 function sym(){return symbols[project.profile.currency]||project.profile.currency+" "}
 function cash(v,d=1){return Number.isFinite(v)?sym()+fmt(v,d):"—"}
@@ -42,7 +46,26 @@ function showPage(page){const id="page-"+page;if(!$("#"+id))return;$$(".page").f
 document.addEventListener("click",e=>{const b=e.target.closest("[data-page]");if(b){e.preventDefault();showPage(b.dataset.page)}});
 function syncProfile(){const p=project.profile;$("#companyName").value=p.name||"";$("#analystName").value=p.analyst||"";$("#industry").value=p.industry||"";$("#valuationDate").value=p.valuationDate||"";$("#currency").value=p.currency||"INR";$("#unit").value=p.unit||"millions";$("#frequency").value=p.frequency||"Annual";$("#shares").value=p.sharesOutstanding??100;$("#sideCompany").textContent=p.name||"Untitled project";$("#overviewCompany").textContent=p.name||"Untitled project";$("#themeSelect").value=project.theme||"light";document.body.dataset.theme=project.theme||"light"}
 function getLatest(g,k){const arr=project.history[g]?.[k]||[];const v=arr[arr.length-1];return v===null?null:n(v)}
-function rebuild(){project.dcf.sharesOutstanding=n(project.profile.sharesOutstanding)||100;forecast=E.buildForecast(project.history,project.assumptions,n(project.forecastYears)||5);valuation=E.calculateDCF(forecast,project.history,project.dcf,project.assumptions);ratios=E.historicalRatios(project.history);renderEverything()}
+function rebuild(){
+ project.dcf.sharesOutstanding=n(project.profile.sharesOutstanding);
+ ratios=E.historicalRatios(project.history);
+ modelStatus=E.modelReadiness(project.history,project.profile.frequency);
+ const assumptionErrors=E.validateForecastAssumptions(project.assumptions);
+ const blockers=[...modelStatus.blockers,...assumptionErrors];
+ if(blockers.length){
+  forecast=[];
+  valuation={...EMPTY_VALUATION,errors:blockers};
+ }else{
+  try{
+   forecast=E.buildForecast(project.history,project.assumptions,n(project.forecastYears)||5);
+   valuation=E.calculateDCF(forecast,project.history,project.dcf,project.assumptions);
+  }catch(error){
+   forecast=[];
+   valuation={...EMPTY_VALUATION,errors:[error.message||"The model could not be calculated."]};
+  }
+ }
+ renderEverything();
+}
 function metric(label,value,desc){return '<div class="metric-card"><small>'+esc(label)+'</small><strong>'+esc(value)+'</strong><em>'+esc(desc||"")+'</em></div>'}
 function table(head,rows){return "<thead><tr>"+head.map((x,i)=>"<th>"+esc(x)+"</th>").join("")+"</tr></thead><tbody>"+rows.map(r=>"<tr>"+r.map(x=>"<td>"+(x===null||x===undefined?"":x)+"</td>").join("")+"</tr>").join("")+"</tbody>"}
 function renderOverview(){
@@ -50,10 +73,14 @@ function renderOverview(){
  $("#overviewCompany").textContent=p.name||"Untitled project";$("#sideCompany").textContent=p.name||"Untitled project";
  const cards=[metric("LATEST REVENUE",cash(rev),h.periods.at(-1)||"No period loaded"),metric("EBITDA MARGIN",pct(r.ebitdaMargin),"Latest reported period"),metric("REVENUE CAGR",pct(cagr),h.periods.length>1?h.periods[0]+"–"+h.periods.at(-1):"Not enough data"),metric("FINAL FORECAST EBITDA",cash(last.ebitda),last.year||"No forecast")];if(Number.isFinite(project.importMeta?.marketCapCrores))cards.push(metric("MARKET CAP",cash(project.importMeta.marketCapCrores),"INR crores · source workbook"));if(Number.isFinite(project.importMeta?.currentPrice))cards.push(metric("CURRENT SHARE PRICE",sym()+fmt(project.importMeta.currentPrice,2),"Source workbook quote"));$("#overviewMetrics").innerHTML=cards.join("");
  $("#overviewEV").textContent=cash(valuation.enterpriseValue);$("#overviewEquity").textContent=cash(valuation.equityValue);$("#overviewPerShare").textContent=Number.isFinite(valuation.perShare)?sym()+fmt(valuation.perShare,2):"—";
- const warnings=E.validateHistory(h).filter(x=>!x.ok).length;$("#modelStatus").textContent=project.importMeta?.source?project.importMeta.source.toUpperCase()+" DATA":project.rawRecords?.length?"IMPORTED DATA":"SAMPLE PROJECT";$("#modelStatus").className="status-pill"+(warnings?" warning":"");
+ const warnings=E.validateHistory(h).filter(x=>!x.ok).length;
+ $("#modelStatus").textContent=!modelStatus?.ready?"INPUTS REQUIRED":project.importMeta?.source?project.importMeta.source.toUpperCase()+" DATA":project.rawRecords?.length?"IMPORTED DATA":"SAMPLE PROJECT";
+ $("#modelStatus").className="status-pill"+(warnings||!modelStatus?.ready||!valuation?.valid?" warning":"");
 }
 function renderValidation(){
  const results=E.validateHistory(project.history);
+ (modelStatus?.blockers||[]).forEach(detail=>results.push({ok:false,title:"Forecast readiness",detail,severity:"warning"}));
+ (valuation?.errors||[]).forEach(detail=>results.push({ok:false,title:"DCF / model input",detail,severity:"warning"}));
  const render=x=>'<div class="validation-item '+(x.ok?"":"warn")+'"><span class="symbol">'+(x.ok?"✓":"⚠")+'</span><div><b>'+esc(x.title)+'</b><small>'+esc(x.detail)+'</small></div></div>';
  $("#validationList").innerHTML=results.map(render).join("")||'<p class="muted">No validation checks are available yet.</p>';
  $("#overviewChecks").innerHTML=results.slice(0,5).map(render).join("");
@@ -64,7 +91,7 @@ function renderHistoryEditor(){
 }
 function renderHistory(){
  const r=ratios,h=project.history,first=r[0]||{},last=r.at(-1)||{},cagr=r.length>1&&n(h.IS.revenue[0])>0?Math.pow(n(h.IS.revenue.at(-1))/n(h.IS.revenue[0]),1/(r.length-1))-1:null;
- $("#historyMetrics").innerHTML=[metric("REVENUE CAGR",pct(cagr),"First to latest"),metric("EBITDA MARGIN",pct(last.ebitdaMargin),"Latest reported"),metric("RETURN ON EQUITY",pct(last.roe),"Average equity basis"),metric("FREE CASH FLOW",cash(last.freeCashFlow),"Latest reported / derived")].join("");
+ $("#historyMetrics").innerHTML=[metric("REVENUE CAGR",pct(cagr),"First to latest"),metric("EBITDA MARGIN",pct(last.ebitdaMargin),"Latest reported"),metric("RETURN ON EQUITY",pct(last.roe),"Average equity basis"),metric("FREE CASH FLOW",cash(last.freeCashFlow),last.freeCashFlow===null?"Not reported / capex unavailable":"Reported or CFO less disclosed capex")].join("");
  const defs=[["Revenue growth","revenueGrowth","pct"],["Gross profit margin","grossMargin","pct"],["EBITDA margin","ebitdaMargin","pct"],["EBIT margin","ebitMargin","pct"],["Net profit margin","netMargin","pct"],["Return on equity","roe","pct"],["Return on assets","roa","pct"],["Return on capital employed","roce","pct"],["Current ratio","currentRatio","x"],["Quick ratio","quickRatio","x"],["Debt / equity","debtEquity","x"],["Interest coverage","interestCoverage","x"],["Asset turnover","assetTurnover","x"],["Working capital","workingCapital","money"],["Free cash flow","freeCashFlow","money"]];
  $("#ratioTable").innerHTML=table(["Metric",...r.map(x=>x.period)],defs.map(([label,k,type])=>[label,...r.map(x=>type==="pct"?pct(x[k]):type==="money"?cash(x[k]):type==="x"?fmt(x[k],2)+"x":"")]));
  renderHistoryEditor();
@@ -77,6 +104,12 @@ function renderAssumptions(){
 }
 function renderForecastTable(id,title,items){const years=forecast.map(x=>x.year);$("#"+id).innerHTML="<thead><tr><th>"+title+"</th>"+years.map(y=>"<th>"+esc(y)+"</th>").join("")+"</tr></thead><tbody>"+items.map(([label,key,fn])=>"<tr><td>"+label+"</td>"+forecast.map(x=>"<td>"+(fn?fn(x):fmt(x[key]))+"</td>").join("")+"</tr>").join("")+"</tbody>"}
 function renderForecast(){
+ if(!forecast.length){
+  ["forecastIS","forecastBS","forecastCF"].forEach(id=>$("#"+id).innerHTML='<tbody><tr><td class="muted">Forecast unavailable until required annual inputs are complete.</td></tr></tbody>');
+  const badge=$("#forecastBalanceBadge");badge.textContent=modelStatus?.blockers?.length?"DATA REQUIRED":"CHECK ASSUMPTIONS";badge.className="tag amber";
+  $("#forecastYears").value=String(project.forecastYears||5);
+  return;
+ }
  renderForecastTable("forecastIS","Income statement",[["Revenue","revenue"],["Revenue growth","revenueGrowth",x=>pct(x.revenueGrowth)],["Cost of goods sold","cogs"],["Gross profit","grossProfit"],["Employee expenses","employeeExpenses"],["Other operating expenses","otherOpex"],["EBITDA","ebitda"],["D&A","da"],["EBIT","ebit"],["Interest expense","interestExpense"],["Profit before tax","pbt"],["Tax expense","tax"],["Net income","netIncome"]]);
  renderForecastTable("forecastBS","Balance sheet",[["Cash & equivalents","cash"],["Accounts receivable","ar"],["Inventory","inventory"],["Other current assets","otherCurrentAssets"],["PP&E","ppe"],["Total assets","totalAssets"],["Accounts payable","ap"],["Short-term debt","shortDebt"],["Long-term debt","longDebt"],["Other liabilities","otherLiabilities"],["Shareholders' equity","equity"],["Total liabilities & equity","totalLiabEquity"],["Balance sheet check","check",x=>'<b style="color:'+(Math.abs(x.check)<.01?"var(--green)":"var(--red)")+'">'+fmt(x.check)+'</b>']]);
  renderForecastTable("forecastCF","Cash flow statement",[["Net income","netIncome"],["D&A add-back","daAddback",x=>fmt(-x.da)],["Change in net working capital","changeNWC"],["Cash flow from operations","cfo"],["Capital expenditure (outflow)","capex",x=>fmt(-x.capex)],["Cash flow from investing","cfi"],["Debt repayment","debtRepayment",x=>fmt(-x.debtRepayment)],["Dividends","dividend",x=>fmt(-x.dividend)],["Cash flow from financing","cff"],["Net change in cash","netChangeCash"],["Free cash flow","fcf"]]);
@@ -95,7 +128,13 @@ function renderTerminal(){
  $("#terminalValueInput").addEventListener("change",e=>{if(g)project.dcf.perpetualGrowth=n(e.target.value)/100;else project.dcf.exitMultiple=n(e.target.value);rebuild();persist()});
 }
 function renderDCF(){
- const v=valuation;$("#costEquity").textContent=pct(v.costEquity,2);$("#waccValue").textContent=pct(v.wacc,2);$("#dcfEV").textContent=cash(v.enterpriseValue);$("#pvForecast").textContent=cash(v.pvForecast);$("#pvTerminal").textContent=cash(v.pvTerminal);$("#dcfEVBridge").textContent=cash(v.enterpriseValue);$("#dcfNetDebt").textContent=cash(v.netDebt);$("#dcfEquity").textContent=cash(v.equityValue);$("#dcfPerShare").textContent=Number.isFinite(v.perShare)?sym()+fmt(v.perShare,2):"N/M";
+ const v=valuation;
+ const warning=$("#dcfWarnings");
+ if(warning){
+  warning.hidden=!!v.valid;
+  warning.textContent=v.valid?"":(v.errors||["DCF is unavailable."]).join(" ");
+ }
+ $("#costEquity").textContent=pct(v.costEquity,2);$("#waccValue").textContent=pct(v.wacc,2);$("#dcfEV").textContent=cash(v.enterpriseValue);$("#pvForecast").textContent=cash(v.pvForecast);$("#pvTerminal").textContent=cash(v.pvTerminal);$("#dcfEVBridge").textContent=cash(v.enterpriseValue);$("#dcfNetDebt").textContent=cash(v.netDebt);$("#dcfEquity").textContent=cash(v.equityValue);$("#dcfPerShare").textContent=Number.isFinite(v.perShare)?sym()+fmt(v.perShare,2):"N/M";
  const defs=[["EBIT","ebit"],["Tax-adjusted EBIT","nopat"],["Add: D&A","daAddback"],["Less: capex","capex"],["Change in NWC","changeNWC"],["Unlevered free cash flow","ufcf"],["Discount factor","discountFactor"],["Present value","pv"]];
  $("#ufcfTable").innerHTML="<thead><tr><th>DCF cash flow build</th>"+v.flows.map(x=>"<th>"+esc(x.year)+"</th>").join("")+"</tr></thead><tbody>"+defs.map(([label,k])=>"<tr><td>"+label+"</td>"+v.flows.map(x=>"<td>"+(k==="pv"?fmt(x.ufcf*x.discountFactor):k==="nopat"||k==="daAddback"?fmt(x[k]):k==="discountFactor"?fmt(x[k],3):fmt(x[k]))+"</td>").join("")+"</tr>").join("")+"</tbody>";
  $("#dcfDriverList").innerHTML=[["WACC",pct(v.wacc,2)],["Cost of equity",pct(v.costEquity,2)],["Perpetual growth",pct(project.dcf.perpetualGrowth,2)],["Exit multiple",fmt(project.dcf.exitMultiple,1)+"x"],["Forecast period",forecast.length+" years"],["Net debt",cash(v.netDebt)]].map(x=>'<div class="kv"><span>'+x[0]+'</span><b>'+x[1]+'</b></div>').join("");
@@ -111,6 +150,10 @@ function renderPeers(){
 }
 function dcfAt(wacc,method,g,m,fc=forecast){const flows=fc.map(x=>x.ebit*(1-project.assumptions.taxRate)-x.da-x.capex-x.changeNWC),pv=flows.reduce((s,x,i)=>s+x/Math.pow(1+wacc,i+1),0),last=fc.at(-1)||{ebitda:0},tail=flows.at(-1)||0,tv=method==="growth"?(wacc>g?tail*(1+g)/(wacc-g):NaN):last.ebitda*m;return pv+tv/Math.pow(1+wacc,fc.length)}
 function renderSensitivity(){
+ if(!forecast.length||!valuation.valid){
+  ["growthSensitivity","multipleSensitivity","operatingSensitivity"].forEach(id=>$("#"+id).innerHTML='<p class="muted">Sensitivity analysis is unavailable until annual model inputs and DCF assumptions pass validation.</p>');
+  return;
+ }
  const w=valuation.wacc,g=project.dcf.perpetualGrowth,m=project.dcf.exitMultiple,wr=Math.max(.0025,n($("#waccRange").value)/100),gr=Math.max(.001,n($("#growthRange").value)/100),mr=Math.max(.25,n($("#multipleRange").value)),steps=[-2,-1,0,1,2];
  function grid(method){const axes=steps.map(s=>method==="growth"?g+s*gr:m+s*mr/2);const rows=steps.map(s=>{const rate=w+s*wr;return ["<b>"+pct(rate,2)+"</b>",...axes.map((x,i)=>{const v=dcfAt(rate,method,method==="growth"?x:g,method==="multiple"?x:m);return '<span class="'+(s===0&&i===2?"base":v>=valuation.enterpriseValue?"higher":"lower")+'">'+fmt(v,0)+'</span>'})]});const headers=[method==="growth"?"WACC ↓ / growth →":"WACC ↓ / exit multiple →",...axes.map(x=>method==="growth"?pct(x,2):fmt(x,1)+"x")];return '<table class="sensitivity-table">'+table(headers,rows)+'</table>'}
  $("#growthSensitivity").innerHTML=grid("growth");$("#multipleSensitivity").innerHTML=grid("multiple");
@@ -135,8 +178,36 @@ function sendMessage(query){if(!query.trim())return;const u=document.createEleme
 function chart(id,series,labels){
  const c=$("#"+id);if(!c)return;const w=c.clientWidth||300,h=c.clientHeight||220,dpr=window.devicePixelRatio||1;c.width=w*dpr;c.height=h*dpr;const x=c.getContext("2d");x.scale(dpr,dpr);const vals=series.flatMap(v=>v.values).filter(Number.isFinite);if(!vals.length)return;const min=Math.min(0,...vals),max=Math.max(1,...vals)*1.08,pl=42,pr=10,pt=12,pb=25,cw=w-pl-pr,ch=h-pt-pb,xx=i=>pl+cw*i/(labels.length-1||1),yy=v=>pt+ch-(v-min)/(max-min||1)*ch,muted=getComputedStyle(document.body).getPropertyValue("--muted"),line=getComputedStyle(document.body).getPropertyValue("--line");for(let k=0;k<5;k++){const y=pt+ch*k/4;x.strokeStyle=line;x.beginPath();x.moveTo(pl,y);x.lineTo(w-pr,y);x.stroke();x.fillStyle=muted;x.font="9px DM Mono";x.fillText(fmt(max-(max-min)*k/4,0),2,y+3)}series.forEach(s=>{x.strokeStyle=s.color;x.lineWidth=2;x.beginPath();s.values.forEach((v,i)=>i?x.lineTo(xx(i),yy(v)):x.moveTo(xx(i),yy(v)));x.stroke();s.values.forEach((v,i)=>{x.fillStyle=s.color;x.beginPath();x.arc(xx(i),yy(v),2.8,0,Math.PI*2);x.fill()})});labels.forEach((l,i)=>{x.fillStyle=muted;x.textAlign="center";x.font="9px DM Mono";x.fillText(String(l),xx(i),h-5)});
 }
-function drawCharts(){const h=project.history,periods=h.periods;chart("revenueChart",[{values:h.IS.revenue.map(x=>n(x)).concat(forecast.map(x=>x.revenue)),color:"#316bd0"}],periods.concat(forecast.map(x=>x.year)));chart("marginChart",[{values:ratios.map(x=>n(x.grossMargin)*100),color:"#316bd0"},{values:ratios.map(x=>n(x.ebitdaMargin)*100),color:"#20966c"},{values:ratios.map(x=>n(x.netMargin)*100),color:"#d49b3d"}],periods);chart("cashChart",[{values:h.IS.ebitda.map(n),color:"#316bd0"},{values:h.CF.fcf.map((x,i)=>x===null?n(h.CF.cfo[i])+n(h.CF.capex[i]):n(x)),color:"#20966c"}],periods);chart("dcfChart",[{values:valuation.flows.map(x=>x.ufcf),color:"#316bd0"},{values:valuation.flows.map(x=>x.ufcf*x.discountFactor),color:"#20966c"}],valuation.flows.map(x=>x.year))}
-function renderEverything(){renderOverview();renderValidation();renderHistory();renderForecast();renderDCF();renderPeers();renderSensitivity();renderAssistantContext();drawCharts()}
+function drawCharts(){
+ const h=project.history,periods=h.periods;
+ chart("revenueChart",[{values:h.IS.revenue.map(x=>x===null?NaN:n(x)).concat(forecast.map(x=>x.revenue)),color:"#316bd0"}],periods.concat(forecast.map(x=>x.year)));
+ chart("marginChart",[{values:ratios.map(x=>x.grossMargin===null?NaN:x.grossMargin*100),color:"#316bd0"},{values:ratios.map(x=>x.ebitdaMargin===null?NaN:x.ebitdaMargin*100),color:"#20966c"},{values:ratios.map(x=>x.netMargin===null?NaN:x.netMargin*100),color:"#d49b3d"}],periods);
+ chart("cashChart",[{values:h.IS.ebitda.map(x=>x===null?NaN:n(x)),color:"#316bd0"},{values:ratios.map(x=>x.freeCashFlow===null?NaN:n(x.freeCashFlow)),color:"#20966c"}],periods);
+ chart("dcfChart",[{values:valuation.flows.map(x=>x.ufcf),color:"#316bd0"},{values:valuation.flows.map(x=>x.ufcf*x.discountFactor),color:"#209b6c"}],valuation.flows.map(x=>x.year));
+}
+function renderReadiness(){
+ const el=$("#modelReadiness");if(!el)return;
+ const blockers=[...(modelStatus?.blockers||[]),...E.validateForecastAssumptions(project.assumptions)];
+ const dcfErrors=valuation?.valid?[]:(valuation?.errors||[]);
+ if(blockers.length||dcfErrors.length){
+  el.hidden=false;el.className="readiness-banner warning";
+  el.innerHTML='<strong>Model not ready for valuation.</strong><ul>'+[...new Set([...blockers,...dcfErrors])].map(x=>'<li>'+esc(x)+'</li>').join("")+'</ul>';
+ }else{
+  el.hidden=false;el.className="readiness-banner ready";
+  el.innerHTML='<strong>Input gate passed.</strong> Historical completeness and DCF assumptions passed the current automated checks. This does not replace analyst review or source verification.';
+ }
+}
+function renderSourceTrace(){
+ const el=$("#sourceTrace");if(!el)return;
+ const meta=project.importMeta||{},files=meta.sourceFiles||[];
+ const source=meta.source||(project.rawRecords?.length?"User-provided CSV / Excel":"Manual entry or synthetic sample");
+ const imported=meta.importedAt?new Date(meta.importedAt).toLocaleString():"Not recorded";
+ const labels=Array.from(new Set((project.rawRecords||[]).map(row=>row.label)));
+ const mapped=labels.filter(label=>project.mapping?.[label]&&project.mapping[label]!=="ignore").length;
+ const notes=meta.sourceNotes||[];
+ el.innerHTML='<div><b>Source</b><span>'+esc(source)+'</span></div><div><b>Files</b><span>'+esc(files.length?files.join(", "):"No imported files")+'</span></div><div><b>Imported</b><span>'+esc(imported)+'</span></div><div><b>Source labels mapped</b><span>'+mapped+' / '+labels.length+'</span></div>'+(notes.length?'<ul>'+notes.map(note=>'<li>'+esc(note)+'</li>').join("")+'</ul>':"");
+}
+function renderEverything(){renderOverview();renderValidation();renderHistory();renderForecast();renderDCF();renderPeers();renderSensitivity();renderAssistantContext();renderReadiness();renderSourceTrace();drawCharts()}
 function parseCsv(txt){
  const lines=txt.replace(/^\uFEFF/,"").split(/\r?\n/).filter(x=>x.trim()),parse=line=>{let arr=[],v="",q=false;for(let i=0;i<line.length;i++){let ch=line[i];if(ch==='"'&&line[i+1]==='"'&&q){v+='"';i++}else if(ch==='"')q=!q;else if(ch===","&&!q){arr.push(v);v=""}else v+=ch}arr.push(v);return arr};if(!lines.length)return [];const heads=parse(lines[0]).map(x=>x.trim());return lines.slice(1).map(l=>{const values=parse(l),obj={};heads.forEach((k,i)=>obj[k]=values[i]??"");return obj});
 }
@@ -250,7 +321,7 @@ async function importStatements(files){
   fresh.dcf.sharesOutstanding=fresh.profile.sharesOutstanding;
   if(Number.isFinite(screenerImport.marketCapCrores))fresh.dcf.equityMarketValue=screenerImport.marketCapCrores;
   fresh.dcf.debtMarketValue=Math.max(0,fresh.history.BS.longDebt.at(-1)||0);
-  fresh.importMeta={source:screenerImport.source,currentPrice:screenerImport.currentPrice,marketCapCrores:screenerImport.marketCapCrores,latestPeriod:screenerImport.latestPeriod,sourceNotes:screenerImport.sourceNotes||[]};
+  fresh.importMeta={source:screenerImport.source,sourceFiles:files.map(file=>file.name),importedAt:new Date().toISOString(),currentPrice:screenerImport.currentPrice,marketCapCrores:screenerImport.marketCapCrores,latestPeriod:screenerImport.latestPeriod,sourceNotes:screenerImport.sourceNotes||[]};
   project=normaliseProject(fresh);
   seedAssumptionsFromImportedHistory(project,screenerImport);
   project.dcf.costOfDebt=project.assumptions.interestRate;
@@ -262,6 +333,7 @@ async function importStatements(files){
   fresh.mapping={};
   Array.from(new Set(records.map(r=>r.label))).forEach(label=>{fresh.mapping[label]=E.mapLabel(label)||"ignore";});
   fresh.history=E.historyFromRecords(records,fresh.mapping);
+  fresh.importMeta={source:"User-provided CSV / Excel",sourceFiles:files.map(file=>file.name),importedAt:new Date().toISOString(),sourceNotes:["Source figures were supplied by the user. Verify every mapped value against the original filing; the app does not independently fetch or verify financial statements."]};
   project=normaliseProject(fresh);
   renderAssumptions();renderWACC();renderTerminal();
  }
@@ -274,7 +346,7 @@ async function importStatements(files){
  toast(company+" loaded: "+periodCount+" historical periods. Dashboard, history, forecast and valuation have been refreshed.");
 }
 function applyMapping(){project.history=E.historyFromRecords(project.rawRecords||[],project.mapping||{});renderManualEntry();rebuild();persist();toast("Source mappings applied.")}
-function loadSample(){const p=E.defaultProject();project=p;syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();persist();$("#importStatus").textContent="Synthetic sample company loaded.";toast("Sample company restored.")}
+function loadSample(){const p=E.defaultProject();p.importMeta={source:"Synthetic demo dataset",sourceFiles:["sample-data/aster_industries.csv"],importedAt:"",sourceNotes:["Aster Industries is fictional demonstration data, not a real issuer or filing."]};project=p;syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();persist();$("#importStatus").textContent="Synthetic sample company loaded.";toast("Sample company restored.")}
 function csvEscape(v){const s=v===null||v===undefined?"":String(v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}
 function csvText(rows){return rows.map(r=>r.map(csvEscape).join(",")).join("\r\n")}
 function rowsForHistory(g){const h=project.history;return [["Line item"].concat(h.periods),...E.ITEMS[g].map(([k,l])=>[l].concat(h.periods.map((_,i)=>h[g][k][i])))]}
@@ -284,7 +356,11 @@ function rowsForForecast(g){
 }
 function downloadBlob(name,blob){const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000)}
 async function exportCsvPack(){
- if(!window.JSZip){toast("CSV pack tool unavailable. Reload with internet access.");return}
+ if(!valuation?.valid){
+  toast("Report export blocked: complete the required annual inputs and fix DCF validation warnings first.");
+  return;
+ }
+ if(!window.JSZip){toast("CSV pack tool unavailable. The local ZIP library may be missing.");return}
  const z=new JSZip(),p=project.profile;
  z.file("00_Report_Cover.csv",csvText([["ModelForge Financial Analysis Report"],["Company",p.name],["Prepared by",p.analyst],["Industry",p.industry],["Valuation date",p.valuationDate],["Currency",p.currency],["Reporting unit",p.unit],["Frequency",p.frequency]]));
  z.file("01_Assumptions.csv",csvText([["Assumption","Value"],...Object.entries(project.assumptions),...Object.entries(project.dcf)]));
@@ -311,6 +387,10 @@ function generateExcelReport(){
   if(!window.ModelWorkbook?.exportWorkbook)throw new Error("Excel report builder is unavailable. Refresh the page and try again.");
   const selectedSheets=Array.from(new Set($$(".export-module:checked").flatMap(el=>String(el.dataset.sheets||"").split("|").filter(Boolean))));
   if(!selectedSheets.length)throw new Error("Select at least one report section.");
+  const valuationSheets=new Set(["Forecast IS","Forecast BS","Forecast CF","FCF","DCF","Sensitivity","Scenario Calc","Comparables"]);
+  if(selectedSheets.some(sheet=>valuationSheets.has(sheet))&&!valuation?.valid){
+   throw new Error("Model export blocked: complete the required annual inputs and resolve DCF validation warnings before exporting forecasts or valuation.");
+  }
   const layout="tabs";
   const filename=window.ModelWorkbook.exportWorkbook(project,forecast,valuation,ratios,{selectedSheets,layout});
   closeExportCenter();
@@ -371,7 +451,7 @@ function saveManualEntry(){
 function startBlank(){
  const p=E.defaultProject(),year=String(new Date().getFullYear());
  p.profile={name:"",analyst:"Financial Analyst",industry:"",valuationDate:new Date().toISOString().slice(0,10),currency:"INR",unit:"millions",frequency:"Annual",sharesOutstanding:100};
- p.history=E.blankHistory([year]);p.peers=[];p.rawRecords=[];p.mapping={};
+ p.history=E.blankHistory([year]);p.peers=[];p.rawRecords=[];p.mapping={};p.importMeta={source:"Blank manual-entry model",sourceFiles:[],importedAt:"",sourceNotes:["Values entered manually by the user; retain citations and supporting filings outside this browser application."]};
  project=normaliseProject(p);syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();rebuild();renderManualEntry();persist();showPage("data");
  toast("Blank company created. Add your company details and enter financials.");
 }

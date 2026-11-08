@@ -37,7 +37,12 @@ function addHistorical(wb,titleText,periods,group,items){
  return ws;
 }
 function exportWorkbook(project,forecast,valuation,ratios,options={}){
- if(!X)throw new Error("Excel writer is not available. Reload this page with internet access.");
+ if(!X)throw new Error("Excel writer is not available. Ensure the local Excel library is loaded.");
+ const valuationSheets=new Set(["Forecast IS","Forecast BS","Forecast CF","FCF","DCF","Sensitivity","Scenario Calc","Comparables"]);
+ const selected=Array.isArray(options.selectedSheets)?options.selectedSheets:null;
+ if(!valuation?.valid&&(!selected||selected.some(sheet=>valuationSheets.has(sheet)))){
+  throw new Error("Cannot export forecast or valuation sheets until the model passes annual data and DCF validation.");
+ }
  const p=project.profile,h=project.history,a=project.assumptions,d=project.dcf,n=forecast.length,periods=h.periods,lastHist=h.periods.length,wb=X.utils.book_new();
  const iRows={revenue:5,cogs:6,grossProfit:7,employeeExpenses:8,otherOpex:9,ebitda:10,da:11,ebit:12,interestExpense:13,pbt:14,tax:15,netIncome:16};
  const bRows={cash:5,ar:6,inventory:7,otherCurrentAssets:8,ppe:9,totalAssets:10,ap:11,shortDebt:12,longDebt:13,otherLiabilities:14,equity:15,totalLiabEquity:16};
@@ -145,7 +150,8 @@ function exportWorkbook(project,forecast,valuation,ratios,options={}){
  headerRow(fcfSchedule,4,periods.length+n+1);
  for(let j=0;j<periods.length;j++){
   const C=col(j+2),cfo=h.CF.cfo?.[j],capex=h.CF.capex?.[j],reportedFcf=h.CF.fcf?.[j],da=h.IS.da?.[j];
-  const historicalFcf=Number.isFinite(reportedFcf)?reportedFcf:(Number.isFinite(cfo)?cfo:0)+(Number.isFinite(capex)?capex:0);
+  const historicalFcf=Number.isFinite(reportedFcf)?reportedFcf:
+   (Number.isFinite(cfo)&&Number.isFinite(capex)?cfo+capex:null);
   const values={5:cfo,6:capex,7:historicalFcf,8:h.IS.ebit?.[j],10:Number.isFinite(da)?Math.abs(da):null,11:Number.isFinite(capex)?Math.abs(capex):null};
   for(const [row,value] of Object.entries(values)){
    if(Number.isFinite(value)){fcfSchedule[C+row]={t:"n",v:value,s:styles.input};}

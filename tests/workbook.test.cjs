@@ -151,3 +151,24 @@ test("blank Excel data template has three importable sheets and round-trips into
     fs.rmSync(dir,{recursive:true,force:true});
   }
 });
+
+
+test("historical FCF export does not replace missing CFO or capex with zero", () => {
+ const p=E.defaultProject();
+ p.history.CF.fcf[0]=null;
+ p.history.CF.capex[0]=null;
+ const forecast=E.buildForecast(p.history,p.assumptions,p.forecastYears);
+ const ratios=E.historicalRatios(p.history);
+ const valuation=E.calculateDCF(forecast,p.history,p.dcf,p.assumptions);
+ const original=process.cwd(),dir=fs.mkdtempSync(path.join(os.tmpdir(),"modelforge-missing-fcf-"));
+ try{
+  process.chdir(dir);
+  const file=window.ModelWorkbook.exportWorkbook(p,forecast,valuation,ratios);
+  const wb=XLSX.readFile(file,{cellFormula:true});
+  assert.equal(wb.Sheets.FCF.B7,undefined,"Missing source data must stay blank in the historical FCF row.");
+  assert.equal(wb.Sheets.FCF.C7.v,p.history.CF.fcf[1],"Explicit reported FCF must remain in the export.");
+ }finally{
+  process.chdir(original);
+  fs.rmSync(dir,{recursive:true,force:true});
+ }
+});
