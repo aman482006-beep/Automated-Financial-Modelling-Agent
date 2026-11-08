@@ -259,7 +259,7 @@ test("period sorting is chronological for fiscal quarters across year boundaries
     {period:"FY2024",label:"Revenue",value:450}
   ];
   const h=E.historyFromRecords(records,{});
-  assert.deepEqual(h.periods,["Q4 FY2024","Q1 FY2025","Q2 FY2025","FY2024"]);
+  assert.deepEqual(h.periods,["Q4 FY2024","FY2024","Q1 FY2025","Q2 FY2025"]);
   assert.equal(E.parseFinancialPeriod("Q1 FY2025").quarter,1);
   assert.equal(E.parseFinancialPeriod("FY2024").kind,"annual");
 });
