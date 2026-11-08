@@ -195,13 +195,158 @@ test("Screener.in Data Sheet imports annual income statement, balance sheet and 
   assert.equal(h.BS.equity[0],86214);
   assert.equal(h.BS.longDebt[0],289);
   assert.equal(h.BS.ppe[0],13242);
-  assert.equal(h.BS.otherCurrentAssets[0],62304);
+  assert.equal(h.BS.otherCurrentAssets[0],20324,"Investments must not be included in operating current assets.");
   assert.equal(h.BS.totalAssets[0],102333);
   assert.equal(h.BS.totalLiabEquity[0],102333);
   assert.equal(h.CF.cfo[0],25223);
   assert.equal(h.CF.cfi[0],-16895);
   assert.equal(h.CF.cff[0],-11026);
   assert.equal(h.CF.capex[0],null);
-  assert.equal(h.CF.fcf[0],8328);
+  assert.equal(h.CF.fcf[0],null,"Total investing cash flow must not be used as a capex proxy.");
   assert.ok(!E.validateHistory(h).some(x=>x.title==="Missing core statement data · FY2017"&&!x.ok));
+  const readiness=E.modelReadiness(h);
+  assert.equal(readiness.ready,false);
+  assert.ok(readiness.blockers.some(x=>x.includes("Accounts payable")));
+  assert.ok(readiness.blockers.some(x=>x.includes("Short-term debt")));
+});
+
+
+test("Screener balance-sheet mappings preserve missing AP and short debt and exclude investments from working capital", () => {
+  const rows=Array.from({length:85},()=>[]);
+  const put=(row,values)=>{rows[row-1]=values;};
+  put(15,["PROFIT & LOSS"]);put(16,["Report Date",43190]);put(17,["Sales",1000]);
+  put(55,["BALANCE SHEET"]);put(56,["Report Date",43190]);
+  put(57,["Equity Share Capital",100]);put(58,["Reserves",300]);
+  put(59,["Borrowings",80]);put(60,["Other Liabilities",50]);
+  put(61,["Total",700]);put(62,["Net Block",200]);put(63,["Capital Work in Progress",10]);
+  put(64,["Investments",90]);put(65,["Other Assets",300]);put(66,["Total",700]);
+  put(67,["Receivables",70]);put(68,["Inventory",80]);put(69,["Cash & Bank",60]);
+  put(80,["CASH FLOW"]);put(81,["Report Date",43190]);put(82,["Cash from Operating Activity",100]);
+  put(83,["Cash from Investing Activity",-50]);put(84,["Cash from Financing Activity",-20]);
+  const parsed=E.parseScreenerDataSheet(rows);
+  assert.ok(parsed);
+  const h=E.historyFromRecords(parsed.records,{});
+  assert.equal(h.BS.otherCurrentAssets[0],90);
+  assert.equal(h.BS.ap[0],null);
+  assert.equal(h.BS.shortDebt[0],null);
+  assert.equal(h.BS.longDebt[0],80);
+  assert.equal(h.CF.fcf[0],null);
+});
+
+test("Screener importer maps AP and debt maturity when the source discloses them", () => {
+  const rows=Array.from({length:85},()=>[]);
+  const put=(row,values)=>{rows[row-1]=values;};
+  put(15,["PROFIT & LOSS"]);put(16,["Report Date",43190]);put(17,["Sales",1000]);
+  put(55,["BALANCE SHEET"]);put(56,["Report Date",43190]);
+  put(57,["Equity Share Capital",100]);put(58,["Reserves",300]);
+  put(59,["Short Term Borrowings",20]);put(60,["Long Term Borrowings",60]);
+  put(61,["Trade Payables",40]);put(62,["Other Liabilities",50]);
+  put(63,["Total",700]);put(64,["Net Block",200]);put(65,["Capital Work in Progress",10]);
+  put(66,["Other Assets",300]);put(67,["Total",700]);put(68,["Receivables",70]);put(69,["Inventory",80]);put(70,["Cash & Bank",60]);
+  put(80,["CASH FLOW"]);put(81,["Report Date",43190]);put(82,["Cash from Operating Activity",100]);
+  put(83,["Cash from Investing Activity",-50]);put(84,["Cash from Financing Activity",-20]);
+  const parsed=E.parseScreenerDataSheet(rows),h=E.historyFromRecords(parsed.records,{});
+  assert.equal(h.BS.shortDebt[0],20);
+  assert.equal(h.BS.longDebt[0],60);
+  assert.equal(h.BS.ap[0],40);
+});
+
+test("period sorting is chronological for fiscal quarters across year boundaries", () => {
+  const records=[
+    {period:"Q1 FY2025",label:"Revenue",value:130},
+    {period:"Q4 FY2024",label:"Revenue",value:120},
+    {period:"Q2 FY2025",label:"Revenue",value:140},
+    {period:"FY2024",label:"Revenue",value:450}
+  ];
+  const h=E.historyFromRecords(records,{});
+  assert.deepEqual(h.periods,["Q4 FY2024","FY2024","Q1 FY2025","Q2 FY2025"]);
+  assert.equal(E.parseFinancialPeriod("Q1 FY2025").quarter,1);
+  assert.equal(E.parseFinancialPeriod("FY2024").kind,"annual");
+});
+
+test("model readiness requires a complete annual balance-sheet starting point", () => {
+  const p=E.defaultProject();
+  assert.equal(E.modelReadiness(p.history,"Annual").ready,true);
+  p.history.BS.ap[p.history.periods.length-1]=null;
+  const result=E.modelReadiness(p.history,"Annual");
+  assert.equal(result.ready,false);
+  assert.ok(result.blockers.some(x=>x.includes("Accounts payable")));
+  assert.throws(()=>E.buildForecast(p.history,p.assumptions,5),/Accounts payable/);
+});
+
+test("model readiness blocks quarterly inputs from annual forecast calculations", () => {
+  const p=E.defaultProject();
+  p.history.periods=["Q1 FY2025"];
+  for(const group of ["IS","BS","CF"])for(const key of Object.keys(p.history[group]))p.history[group][key]=[p.history[group][key].at(-1)];
+  const result=E.modelReadiness(p.history,"Annual");
+  assert.equal(result.ready,false);
+  assert.ok(result.blockers.some(x=>x.includes("Quarterly periods")));
+  assert.throws(()=>E.buildForecast(p.history,p.assumptions,5),/Quarterly periods/);
+});
+
+test("forecast assumptions reject invalid or extreme driver values", () => {
+  const p=E.defaultProject();
+  assert.deepEqual(E.validateForecastAssumptions(p.assumptions),[]);
+  const invalid={...p.assumptions,revenueGrowth:8,taxRate:1.2,arDays:-1};
+  const errors=E.validateForecastAssumptions(invalid);
+  assert.equal(errors.length,3);
+});
+
+test("DCF assumption validation prevents invalid WACC and terminal growth combinations", () => {
+  const p=E.defaultProject(),f=E.buildForecast(p.history,p.assumptions,5);
+  const invalid={...p.dcf,perpetualGrowth:0.5};
+  const errors=E.validateDCFInputs(invalid,p.assumptions,p.history);
+  assert.ok(errors.some(x=>x.includes("Perpetual growth")));
+  assert.equal(E.calculateDCF(f,p.history,invalid,p.assumptions).valid,false);
+  const invalidShares={...p.dcf,sharesOutstanding:0};
+  assert.ok(E.validateDCFInputs(invalidShares,p.assumptions,p.history).some(x=>x.includes("Shares outstanding")));
+});
+
+test("missing FCF remains unavailable when only CFO and CFI are supplied", () => {
+  const h=E.historyFromRecords([
+    {period:"2025",label:"Cash flow from operations",value:120},
+    {period:"2025",label:"Cash flow from investing",value:-75}
+  ],{});
+  assert.equal(E.historicalRatios(h)[0].freeCashFlow,null);
+});
+
+
+test("model readiness blocks an unreconciled latest balance sheet", () => {
+  const p=E.defaultProject();
+  const latest=p.history.periods.length-1;
+  p.history.BS.totalAssets[latest]+=10;
+  const result=E.modelReadiness(p.history,"Annual");
+  assert.equal(result.ready,false);
+  assert.ok(result.blockers.some(x=>x.includes("does not reconcile")));
+  assert.throws(()=>E.buildForecast(p.history,p.assumptions,5),/does not reconcile/);
+});
+
+
+test("Screener importer does not assume generic other liabilities are current", () => {
+  const rows=Array.from({length:85},()=>[]);
+  const put=(row,values)=>{rows[row-1]=values;};
+  put(15,["PROFIT & LOSS"]);put(16,["Report Date",43190]);put(17,["Sales",1000]);
+  put(55,["BALANCE SHEET"]);put(56,["Report Date",43190]);
+  put(57,["Equity Share Capital",100]);put(58,["Reserves",300]);put(59,["Borrowings",80]);
+  put(60,["Other Liabilities",50]);put(61,["Total",700]);put(62,["Net Block",200]);
+  put(63,["Capital Work in Progress",10]);put(64,["Other Assets",300]);put(65,["Total",700]);
+  put(66,["Receivables",70]);put(67,["Inventory",80]);put(68,["Cash & Bank",60]);
+  put(80,["CASH FLOW"]);put(81,["Report Date",43190]);put(82,["Cash from Operating Activity",100]);
+  put(83,["Cash from Investing Activity",-50]);put(84,["Cash from Financing Activity",-20]);
+  const parsed=E.parseScreenerDataSheet(rows);
+  assert.ok(parsed.records.some(record=>record.label==="Unclassified other liabilities"&&record.value===50));
+  const h=E.historyFromRecords(parsed.records,{});
+  assert.equal(h.BS.otherLiabilities[0],null);
+});
+
+test("wide-format Excel import recognises FY-prefixed period columns", () => {
+  const rows = [
+    {"FY 2024": 100, "FY 2025": 120, "Line item": "Revenue"},
+    {"FY 2024": -55, "FY 2025": -62, "Line item": "Cost of goods sold"}
+  ];
+  const records = E.recordsFromRows(rows, "Income Statement");
+  const history = E.historyFromRecords(records, {});
+  assert.deepEqual(history.periods, ["2024", "2025"]);
+  assert.deepEqual(history.IS.revenue, [100,120]);
+  assert.deepEqual(history.IS.cogs, [-55,-62]);
 });

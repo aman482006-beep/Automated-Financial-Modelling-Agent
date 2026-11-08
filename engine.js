@@ -62,7 +62,7 @@ function blankHistory(periods){
  return h;
 }
 function defaultProject(){
- const h=clone(SAMPLE);return {profile:{name:h.name,analyst:h.analyst,industry:h.industry,valuationDate:h.valuationDate,currency:h.currency,unit:h.unit,frequency:h.frequency,sharesOutstanding:h.sharesOutstanding},history:{periods:h.periods,IS:h.IS,BS:h.BS,CF:h.CF},assumptions:clone(DEFAULT_ASSUMPTIONS),dcf:clone(DEFAULT_DCF),peers:clone(DEFAULT_PEERS),mapping:{},rawRecords:[],theme:"light",forecastYears:5};
+ const h=clone(SAMPLE);return {profile:{name:h.name,analyst:h.analyst,industry:h.industry,valuationDate:h.valuationDate,currency:h.currency,unit:h.unit,frequency:h.frequency,sharesOutstanding:h.sharesOutstanding},history:{periods:h.periods,IS:h.IS,BS:h.BS,CF:h.CF},assumptions:clone(DEFAULT_ASSUMPTIONS),dcf:clone(DEFAULT_DCF),peers:clone(DEFAULT_PEERS),mapping:{},rawRecords:[],importMeta:{source:"Synthetic demo dataset",sourceFiles:["sample-data/aster_industries.csv"],importedAt:"",sourceNotes:["Aster Industries is fictional demonstration data, not a real issuer or filing."]},theme:"light",forecastYears:5};
 }
 function normaliseLabel(s){return String(s??"").toLowerCase().normalize("NFKD").replace(/[^a-z0-9]/g,"");}
 function mapLabel(s){return ALIASES[normaliseLabel(s)]||null;}
@@ -108,7 +108,7 @@ function recordsFromRows(rows,sheetName="",fileName=""){
   });
   return out;
  }
- const periodColumns=keys.filter(key=>/^(?:19|20)\d{2}$|^Q[1-4][ -]?(?:19|20)\d{2}$/i.test(String(key).trim()));
+ const periodColumns=keys.filter(key=>/^(?:(?:FY\s*)?(?:19|20)\d{2}(?:\s*Q[1-4])?|Q[1-4][ -]?(?:19|20)\d{2})$/i.test(String(key).trim()));
  const labelKey=itemKey||keys.find(key=>!periodColumns.includes(key));
  if(labelKey&&periodColumns.length){
   rows.forEach(row=>periodColumns.forEach(periodKey=>{
@@ -207,8 +207,12 @@ function parseScreenerDataSheet(matrix){
   if(ni!==null)add(period,"Net income",ni,"IS.netIncome");
  }
  const bLabels={
-  sharecapital:["equitysharecapital"],reserves:["reserves"],borrowings:["borrowings"],otherliabilities:["otherliabilities"],
-  netblock:["netblock"],cwip:["capitalworkinprogress"],investments:["investments"],otherassets:["otherassets"],
+  sharecapital:["equitysharecapital"],reserves:["reserves"],borrowings:["borrowings"],
+  shortBorrowings:["shorttermborrowings","currentborrowings","shorttermdebt"],
+  longBorrowings:["longtermborrowings","noncurrentborrowings","longtermdebt"],
+  payables:["tradepayables","accountspayable","tradeandotherpayables"],
+  otherCurrentLiabilities:["othercurrentliabilities","currentotherliabilities"],netblock:["netblock"],
+  cwip:["capitalworkinprogress"],investments:["investments"],otherassets:["otherassets"],
   receivables:["receivables","debtors"],inventory:["inventory"],cash:["cashbank","cashandbank"]
  };
  const bRows={};Object.entries(bLabels).forEach(([key,names])=>bRows[key]=findRow(bStart,bEnd,names));
@@ -216,19 +220,27 @@ function parseScreenerDataSheet(matrix){
  for(let i=0;i<bPeriods.length;i++){
   const period=bPeriods[i];if(!period)continue;
   const get=key=>at(bRows[key],i);
-  const capital=get("sharecapital"),reserves=get("reserves"),borrowings=get("borrowings"),otherLiabilities=get("otherliabilities");
-  const netBlock=get("netblock"),cwip=get("cwip"),investments=get("investments"),otherAssets=get("otherassets");
+  const capital=get("sharecapital"),reserves=get("reserves"),borrowings=get("borrowings");
+  const otherLiabilities=get("otherCurrentLiabilities");
+  const shortBorrowings=get("shortBorrowings"),longBorrowings=get("longBorrowings"),payables=get("payables");
+  const unclassifiedLiabilities=at(findRow(bStart,bEnd,["otherliabilities"]),i);
+  const netBlock=get("netblock"),cwip=get("cwip"),otherAssets=get("otherassets");
+  const receivables=get("receivables"),inventory=get("inventory"),cash=get("cash");
   const equity=capital===null&&reserves===null?null:(capital||0)+(reserves||0);
   const ppe=netBlock===null&&cwip===null?null:(netBlock||0)+(cwip||0);
-  const otherCurrent=investments===null&&otherAssets===null?null:(investments||0)+(otherAssets||0)-(get("receivables")||0)-(get("inventory")||0)-(get("cash")||0);
+  // Screener's "Other Assets" is the current-asset bucket. Investments are
+  // non-current assets and must not be added to operating working capital.
+  const otherCurrent=otherAssets!==null&&[receivables,inventory,cash].every(x=>x!==null)
+    ?otherAssets-receivables-inventory-cash:null;
   if(equity!==null)add(period,"Shareholders' equity",equity,"BS.equity");
-  if(borrowings!==null)add(period,"Long-term debt",Math.abs(borrowings),"BS.longDebt");
+  if(shortBorrowings!==null)add(period,"Short-term debt",Math.abs(shortBorrowings),"BS.shortDebt");
+  if(longBorrowings!==null)add(period,"Long-term debt",Math.abs(longBorrowings),"BS.longDebt");
+  else if(borrowings!==null)add(period,"Long-term debt",Math.abs(borrowings),"BS.longDebt");
+  if(payables!==null)add(period,"Accounts payable",Math.abs(payables),"BS.ap");
   if(otherLiabilities!==null)add(period,"Other operating liabilities",Math.abs(otherLiabilities),"BS.otherLiabilities");
-  add(period,"Short-term debt",0,"BS.shortDebt");
-  add(period,"Accounts payable",0,"BS.ap");
+  if(unclassifiedLiabilities!==null)records.push({period,label:"Unclassified other liabilities",value:Math.abs(unclassifiedLiabilities),statement:"Screener.in Data Sheet"});
   if(ppe!==null)add(period,"Property, plant & equipment",ppe,"BS.ppe");
   if(otherCurrent!==null)add(period,"Other current assets",otherCurrent,"BS.otherCurrentAssets");
-  const receivables=get("receivables"),inventory=get("inventory"),cash=get("cash");
   if(receivables!==null)add(period,"Accounts receivable",Math.abs(receivables),"BS.ar");
   if(inventory!==null)add(period,"Inventory",Math.abs(inventory),"BS.inventory");
   if(cash!==null)add(period,"Cash & cash equivalents",Math.abs(cash),"BS.cash");
@@ -245,8 +257,8 @@ function parseScreenerDataSheet(matrix){
   if(operating!==null)add(period,"Cash flow from operations",operating,"CF.cfo");
   if(investing!==null)add(period,"Cash flow from investing",investing,"CF.cfi");
   if(financing!==null)add(period,"Cash flow from financing",financing,"CF.cff");
-  // Screener summary exports do not give a standalone capex line.
-  if(operating!==null&&investing!==null)add(period,"Free cash flow",operating+investing,"CF.fcf");
+  // Screener summary exports do not provide a standalone capex line. Keep
+  // reported FCF missing rather than substituting CFO + total investing cash flow.
  }
  const metaRow=key=>rows.find(row=>rowLabel(row)===normaliseLabel(key));
  const companyName=String(metaRow("companyname")?.[1]??"").trim();
@@ -262,7 +274,14 @@ function parseScreenerDataSheet(matrix){
   records,companyName,currentPrice,marketCapCrores,sharesOutstandingCrores,
   dividendAmount:dividendValues.at(-1)??null,latestPeriod,latestDate:latestYear?latestYear+"-03-31":null,
   source:"Screener.in",frequency:"Annual",unit:"crores",currency:"INR",
-  sourceNotes:["Annual financials were imported from the Data Sheet. Quarterly data, when present, remains separate so annual and quarterly periods are not mixed.","Standalone capex is not separately supplied; historical free cash flow is shown as operating cash flow plus net investing cash flow."]
+  sourceNotes:[
+   "Annual financials were imported from the supplied Screener.in Data Sheet. Check source values against the original filing.",
+   "Short- and long-term borrowings are separated only when separate source lines exist. A combined Borrowings line is temporarily mapped to long debt for the total-net-debt bridge; review its maturity classification.",
+   "Accounts payable and short-term debt remain missing when they are not disclosed separately. Enter or map them before using liquidity ratios or building a forecast.",
+   "An unqualified Other Liabilities line is preserved as unclassified; only an explicitly current-liability line is mapped into operating working capital. Review it in the mapping table.",
+   "Investments are excluded from operating working capital. Other current assets are derived only from the Other Assets total after subtracting receivables, inventory and cash.",
+   "Standalone capex is not supplied by the summary Data Sheet. Historical free cash flow is left blank; total investing cash flow is not treated as capex."
+  ]
  };
 }
 function num(x, fallback=0){return x===null||x===undefined||x===""||!Number.isFinite(Number(x))?fallback:Number(x);}
@@ -277,14 +296,30 @@ function derivedValue(h,g,k,i){
  if(g==="IS"&&k==="pbt"&&atValue(h,g,"ebit",i)!==null)return v("ebit")+v("interestExpense")+(atValue(h,g,"otherIncome",i)===null?0:v("otherIncome"));
  if(g==="IS"&&k==="netIncome"&&atValue(h,g,"pbt",i)!==null)return v("pbt")+v("tax");
  if(g==="CF"&&k==="fcf"&&atValue(h,g,"cfo",i)!==null&&atValue(h,g,"capex",i)!==null)return v("cfo")+v("capex");
- if(g==="CF"&&k==="fcf"&&atValue(h,g,"cfo",i)!==null&&atValue(h,g,"cfi",i)!==null)return v("cfo")+v("cfi");
+ return null;
+}
+function parseFinancialPeriod(value){
+ const text=String(value??"").trim().toUpperCase().replace(/[_-]+/g," ").replace(/\s+/g," ");
+ let match=text.match(/Q([1-4])\s*(?:FY\s*)?((?:19|20)\d{2})/);
+ if(match)return {year:Number(match[2]),quarter:Number(match[1]),kind:"quarter"};
+ match=text.match(/FY\s*((?:19|20)\d{2})\s*Q([1-4])/);
+ if(match)return {year:Number(match[1]),quarter:Number(match[2]),kind:"quarter"};
+ match=text.match(/FY\s*((?:19|20)\d{2})/);
+ if(match)return {year:Number(match[1]),quarter:5,kind:"annual"};
+ match=text.match(/^((?:19|20)\d{2})$/);
+ if(match)return {year:Number(match[1]),quarter:5,kind:"annual"};
+ match=text.match(/^((?:19|20)\d{2})[-/](\d{1,2})[-/](\d{1,2})$/);
+ if(match)return {year:Number(match[1]),quarter:5,kind:"annual"};
+ const date=Date.parse(text);
+ if(Number.isFinite(date))return {year:new Date(date).getUTCFullYear(),quarter:5,kind:"annual"};
  return null;
 }
 function periodSort(a,b){
- const pa=String(a),pb=String(b),na=Number(pa),nb=Number(pb);
- if(Number.isFinite(na)&&Number.isFinite(nb))return na-nb;
- const da=Date.parse(pa),db=Date.parse(pb);if(Number.isFinite(da)&&Number.isFinite(db))return da-db;
- return pa.localeCompare(pb,undefined,{numeric:true});
+ const pa=parseFinancialPeriod(a),pb=parseFinancialPeriod(b);
+ if(pa&&pb)return (pa.year*10+pa.quarter)-(pb.year*10+pb.quarter);
+ if(pa)return -1;
+ if(pb)return 1;
+ return String(a).localeCompare(String(b),undefined,{numeric:true});
 }
 function historyFromRecords(records,mapping){
  const periods=Array.from(new Set(records.map(r=>String(r.period).trim()).filter(Boolean))).sort(periodSort);
@@ -301,20 +336,28 @@ function historicalRatios(h){
  for(let i=0;i<periods.length;i++){
   const V=k=>derivedValue(h,"IS",k,i),B=k=>atValue(h,"BS",k,i)===null?null:num(atValue(h,"BS",k,i));
   const rev=V("revenue"),gp=V("grossProfit"),ebitda=V("ebitda"),ebit=V("ebit"),ni=V("netIncome");
-  const currentAssets=["cash","ar","inventory","otherCurrentAssets"].reduce((s,k)=>s+(B(k)||0),0);
-  const currentLiabilities=["ap","shortDebt","otherLiabilities"].reduce((s,k)=>s+(B(k)||0),0);
-  const debt=(B("shortDebt")||0)+(B("longDebt")||0),equity=B("equity");
-  const prevEq=i>0?B("equity")===null?null:((B("equity")||0)+(num(atValue(h,"BS","equity",i-1))))/2:equity;
-  const prevAssets=i>0?((B("totalAssets")||0)+num(atValue(h,"BS","totalAssets",i-1)))/2:B("totalAssets");
-  const prevRev=i>0?num(atValue(h,"IS","revenue",i-1)):null;
+  const sumKnown=keys=>{
+   const values=keys.map(B);
+   return values.every(value=>value!==null)?values.reduce((sum,value)=>sum+value,0):null;
+  };
+  const currentAssets=sumKnown(["cash","ar","inventory","otherCurrentAssets"]);
+  const currentLiabilities=sumKnown(["ap","shortDebt","otherLiabilities"]);
+  const shortDebt=B("shortDebt"),longDebt=B("longDebt");
+  const debt=shortDebt!==null&&longDebt!==null?shortDebt+longDebt:null,equity=B("equity");
+  const priorEquity=i>0?atValue(h,"BS","equity",i-1):null;
+  const priorAssets=i>0?atValue(h,"BS","totalAssets",i-1):null;
+  const prevEq=i===0?equity:(equity!==null&&priorEquity!==null?(equity+priorEquity)/2:null);
+  const prevAssets=i===0?B("totalAssets"):(B("totalAssets")!==null&&priorAssets!==null?(B("totalAssets")+priorAssets)/2:null);
+  const prevRev=i>0?atValue(h,"IS","revenue",i-1):null;
   const interest=V("interestExpense");
   out.push({
-   period:periods[i],revenueGrowth:i>0&&prevRev?rev/prevRev-1:null,grossMargin:rev?gp/rev:null,ebitdaMargin:rev?ebitda/rev:null,
+   period:periods[i],revenueGrowth:i>0&&prevRev!==null&&prevRev!==0&&rev!==null?rev/prevRev-1:null,grossMargin:rev?gp/rev:null,ebitdaMargin:rev?ebitda/rev:null,
    ebitMargin:rev?ebit/rev:null,netMargin:rev?ni/rev:null,roe:prevEq?ni/prevEq:null,roa:prevAssets?ni/prevAssets:null,
-   roce:(prevEq!==null&&debt+prevEq)?ebit/(debt+prevEq):null,currentRatio:currentLiabilities?currentAssets/currentLiabilities:null,
-   quickRatio:currentLiabilities?((B("cash")||0)+(B("ar")||0))/currentLiabilities:null,
-   debtEquity:equity?debt/equity:null,interestCoverage:interest?ebit/Math.abs(interest):null,
-   assetTurnover:B("totalAssets")?rev/B("totalAssets"):null,workingCapital:currentAssets-currentLiabilities,
+   roce:(prevEq!==null&&debt!==null&&debt+prevEq!==0)?ebit/(debt+prevEq):null,
+   currentRatio:currentLiabilities!==null&&currentLiabilities!==0&&currentAssets!==null?currentAssets/currentLiabilities:null,
+   quickRatio:currentLiabilities!==null&&currentLiabilities!==0&&B("cash")!==null&&B("ar")!==null?(B("cash")+B("ar"))/currentLiabilities:null,
+   debtEquity:equity!==null&&equity!==0&&debt!==null?debt/equity:null,interestCoverage:interest?ebit/Math.abs(interest):null,
+   assetTurnover:B("totalAssets")?rev/B("totalAssets"):null,workingCapital:currentAssets!==null&&currentLiabilities!==null?currentAssets-currentLiabilities:null,
    freeCashFlow:derivedValue(h,"CF","fcf",i)
   });
  }
@@ -358,7 +401,135 @@ function validateHistory(h){
  add(true,"Currency and reporting unit","Project currency and unit are metadata. Confirm that every uploaded file uses the same currency and scale; the static app does not infer or convert source units.");
  return out;
 }
+function modelReadiness(h,frequency="Annual"){
+ const blockers=[];
+ if(!h||!Array.isArray(h.periods)||h.periods.length===0){
+  return {ready:false,blockers:["Import at least one annual reporting period before building a forecast."]};
+ }
+ const normalizedFrequency=String(frequency||"Annual").trim().toLowerCase();
+ if(!["annual","yearly","fy"].includes(normalizedFrequency)){
+  blockers.push("The current forecast engine requires annual historical periods. Aggregate quarterly data into a full financial year before forecasting.");
+ }
+ const quarterlyPeriods=h.periods.filter(period=>parseFinancialPeriod(period)?.kind==="quarter");
+ if(quarterlyPeriods.length){
+  blockers.push("Quarterly periods cannot be used as annual forecast starting points. Remove or aggregate: "+quarterlyPeriods.join(", ")+".");
+ }
+ const index=h.periods.length-1;
+ const required=[
+  ["Revenue","IS","revenue"],
+  ["Cash and cash equivalents","BS","cash"],
+  ["Accounts receivable","BS","ar"],
+  ["Inventory","BS","inventory"],
+  ["Other current assets","BS","otherCurrentAssets"],
+  ["Property, plant and equipment","BS","ppe"],
+  ["Accounts payable","BS","ap"],
+  ["Short-term debt","BS","shortDebt"],
+  ["Long-term debt / total borrowings","BS","longDebt"],
+  ["Other operating liabilities","BS","otherLiabilities"],
+  ["Shareholders' equity","BS","equity"],
+  ["Total assets","BS","totalAssets"],
+  ["Total liabilities and equity","BS","totalLiabEquity"]
+ ];
+ const missing=required.filter(([,group,key])=>{
+  const value=h[group]?.[key]?.[index];
+  return value===null||value===undefined||!Number.isFinite(Number(value));
+ }).map(([label])=>label);
+ if(missing.length)blockers.push("Latest period is missing required forecast inputs: "+missing.join(", ")+". Enter the reported value, including an explicit zero where zero is correct.");
+ const latestAssets=h.BS?.totalAssets?.[index],latestLiabilitiesEquity=h.BS?.totalLiabEquity?.[index];
+ if(Number.isFinite(Number(latestAssets))&&Number.isFinite(Number(latestLiabilitiesEquity))&&Math.abs(Number(latestAssets)-Number(latestLiabilitiesEquity))>=0.01){
+  blockers.push("The latest balance sheet does not reconcile: total assets differ from total liabilities and equity by "+(Number(latestAssets)-Number(latestLiabilitiesEquity)).toFixed(2)+". Resolve the difference before forecasting.");
+ }
+ const periodOrder=h.periods.every((period,i)=>i===0||periodSort(h.periods[i-1],period)<0);
+ if(!periodOrder)blockers.push("Reporting periods must be unique and in chronological order.");
+ return {ready:blockers.length===0,blockers};
+}
+
+function validateForecastAssumptions(a){
+ const errors=[];
+ if(!a||typeof a!=="object")return ["Forecast assumptions are missing."];
+ const ranges={
+  revenueGrowth:[-0.9,5],
+  grossMargin:[0,1.5],
+  employeePct:[0,1.5],
+  otherOpexPct:[0,1.5],
+  daPct:[0,1.5],
+  taxRate:[0,1],
+  capexPct:[0,2],
+  arDays:[0,3650],
+  inventoryDays:[0,3650],
+  apDays:[0,3650],
+  otherCurrentAssetsPct:[0,2],
+  otherLiabilitiesPct:[0,2],
+  annualDebtRepayment:[0,1e12],
+  interestRate:[0,1],
+  dividendPayout:[0,1.5]
+ };
+ for(const [key,[minimum,maximum]] of Object.entries(ranges)){
+  const value=a[key];
+  if(typeof value!=="number"||!Number.isFinite(value)||value<minimum||value>maximum){
+   errors.push(key+" must be a finite value between "+minimum+" and "+maximum+".");
+  }
+ }
+ return errors;
+}
+
+function validateDCFInputs(d,a,h){
+ const errors=[];
+ if(!d||typeof d!=="object")return ["DCF assumptions are missing."];
+ const finiteRange=(key,label,min,max)=>{
+  const value=d[key];
+  if(typeof value!=="number"||!Number.isFinite(value)||value<min||value>max){
+   errors.push(label+" must be a finite value between "+min+" and "+max+".");
+  }
+ };
+ finiteRange("riskFreeRate","Risk-free rate",0,1);
+ finiteRange("equityRiskPremium","Equity risk premium",0,1);
+ finiteRange("beta","Levered beta",0,10);
+ finiteRange("costOfDebt","Pre-tax cost of debt",0,1);
+ finiteRange("equityMarketValue","Market value of equity",0,1e15);
+ finiteRange("debtMarketValue","Market value of debt",0,1e15);
+ if(Number.isFinite(d.equityMarketValue)&&Number.isFinite(d.debtMarketValue)&&d.equityMarketValue+d.debtMarketValue<=0){
+  errors.push("Market value of equity plus debt must be greater than zero to calculate WACC.");
+ }
+ if(!a||typeof a.taxRate!=="number"||!Number.isFinite(a.taxRate)||a.taxRate<0||a.taxRate>1){
+  errors.push("Tax rate must be between 0% and 100%.");
+ }
+ if(typeof d.sharesOutstanding!=="number"||!Number.isFinite(d.sharesOutstanding)||d.sharesOutstanding<=0){
+  errors.push("Shares outstanding must be greater than zero.");
+ }
+ if(!["growth","multiple"].includes(d.terminalMethod)){
+  errors.push("Choose a supported terminal-value method.");
+ }
+ if(d.terminalMethod==="growth"){
+  if(typeof d.perpetualGrowth!=="number"||!Number.isFinite(d.perpetualGrowth)||d.perpetualGrowth< -0.05||d.perpetualGrowth>0.20){
+   errors.push("Perpetual growth must be between -5% and 20%.");
+  }
+ }
+ if(d.terminalMethod==="multiple"){
+  if(typeof d.exitMultiple!=="number"||!Number.isFinite(d.exitMultiple)||d.exitMultiple<=0||d.exitMultiple>100){
+   errors.push("Exit EBITDA multiple must be greater than zero and no more than 100x.");
+  }
+ }
+ if(h){
+  const readiness=modelReadiness(h,"Annual");
+  if(!readiness.ready)errors.push(...readiness.blockers);
+ }
+ if(errors.length===0){
+  const w=calculateWACC(d,a.taxRate).wacc;
+  if(!Number.isFinite(w)||w<=0||w>=2)errors.push("Calculated WACC must be greater than 0% and below 200%.");
+  else if(d.terminalMethod==="growth"&&w<=d.perpetualGrowth){
+   errors.push("WACC must be greater than the perpetual growth rate. Increase WACC or reduce terminal growth.");
+  }
+ }
+ return errors;
+}
+
 function buildForecast(h,a,years){
+ const readiness=modelReadiness(h,"Annual");
+ if(!readiness.ready)throw new Error(readiness.blockers.join(" "));
+ const assumptionErrors=validateForecastAssumptions(a);
+ if(assumptionErrors.length)throw new Error(assumptionErrors.join(" "));
+ if(!Number.isInteger(years)||years<1||years>10)throw new Error("Forecast horizon must be an integer from 1 to 10 years.");
  const n=h.periods.length,last=n-1,period=h.periods[last]||"2025";
  const H=(g,k)=>num(derivedValue(h,g,k,last));
  let revenue=H("IS","revenue"),cash=H("BS","cash"),ar=H("BS","ar"),inventory=H("BS","inventory"),oca=H("BS","otherCurrentAssets"),
@@ -395,19 +566,28 @@ function calculateWACC(d,taxRate){
  return {costEquity,equityWeight,debtWeight,wacc:equityWeight*costEquity+debtWeight*d.costOfDebt*(1-taxRate)};
 }
 function calculateDCF(forecast,h,d,assumptions){
+ const errors=validateDCFInputs(d,assumptions,h);
+ if(!Array.isArray(forecast)||forecast.length===0)errors.push("A valid forecast is required before calculating DCF.");
+ if(errors.length){
+  return {valid:false,errors,wacc:null,costEquity:null,equityWeight:null,debtWeight:null,flows:[],pvForecast:null,terminalValue:null,pvTerminal:null,enterpriseValue:null,netDebt:null,equityValue:null,perShare:null};
+ }
  const w=calculateWACC(d,assumptions.taxRate),tax=assumptions.taxRate;
- const flows=forecast.map((x,i)=>({year:x.year,ebit:x.ebit,nopat:x.ebit*(1-tax),daAddback:-x.da,capex:x.capex,changeNWC:x.changeNWC,ufcf:x.ebit*(1-tax)-x.da-x.capex-x.changeNWC,discountFactor:w.wacc?1/Math.pow(1+w.wacc,i+1):null}));
- const pvForecast=flows.reduce((s,x)=>s+(x.discountFactor===null?0:x.ufcf*x.discountFactor),0);
- const tail=flows[flows.length-1]||{ufcf:0},lastForecast=forecast[forecast.length-1]||{ebitda:0};
- let terminalValue=null;
- if(d.terminalMethod==="growth"&&w.wacc!==null&&w.wacc>d.perpetualGrowth)terminalValue=tail.ufcf*(1+d.perpetualGrowth)/(w.wacc-d.perpetualGrowth);
- if(d.terminalMethod==="multiple")terminalValue=lastForecast.ebitda*d.exitMultiple;
- const pvTerminal=terminalValue===null||!flows.length||!w.wacc?null:terminalValue/Math.pow(1+w.wacc,flows.length);
- const enterpriseValue=pvTerminal===null?null:pvForecast+pvTerminal;
+ const flows=forecast.map((x,i)=>({
+  year:x.year,ebit:x.ebit,nopat:x.ebit*(1-tax),daAddback:-x.da,capex:x.capex,changeNWC:x.changeNWC,
+  ufcf:x.ebit*(1-tax)-x.da-x.capex-x.changeNWC,
+  discountFactor:1/Math.pow(1+w.wacc,i+1)
+ }));
+ const pvForecast=flows.reduce((sum,x)=>sum+x.ufcf*x.discountFactor,0);
+ const tail=flows[flows.length-1],lastForecast=forecast[forecast.length-1];
+ const terminalValue=d.terminalMethod==="growth"
+  ?tail.ufcf*(1+d.perpetualGrowth)/(w.wacc-d.perpetualGrowth)
+  :lastForecast.ebitda*d.exitMultiple;
+ const pvTerminal=terminalValue/Math.pow(1+w.wacc,flows.length);
+ const enterpriseValue=pvForecast+pvTerminal;
  const netDebt=lastValue(h,"BS","shortDebt")+lastValue(h,"BS","longDebt")-lastValue(h,"BS","cash");
- const equityValue=enterpriseValue===null?null:enterpriseValue-netDebt;
- const perShare=equityValue===null||!d.sharesOutstanding?null:equityValue/d.sharesOutstanding;
- return {wacc:w.wacc,costEquity:w.costEquity,equityWeight:w.equityWeight,debtWeight:w.debtWeight,flows,pvForecast,terminalValue,pvTerminal,enterpriseValue,netDebt,equityValue,perShare};
+ const equityValue=enterpriseValue-netDebt;
+ const perShare=equityValue/d.sharesOutstanding;
+ return {valid:true,errors:[],wacc:w.wacc,costEquity:w.costEquity,equityWeight:w.equityWeight,debtWeight:w.debtWeight,flows,pvForecast,terminalValue,pvTerminal,enterpriseValue,netDebt,equityValue,perShare};
 }
 function peerMultiples(peer){
  const ratio=(a,b)=>a>0&&b>0?a/b:null;
@@ -422,8 +602,9 @@ function peerStatistics(peers){
 }
 function operatingScenario(h,a,years,dcfInputs,terminalGrowth,terminalMultiple,method){
  const f=buildForecast(h,a,years),d={...dcfInputs,terminalMethod:method||dcfInputs.terminalMethod,perpetualGrowth:terminalGrowth??dcfInputs.perpetualGrowth,exitMultiple:terminalMultiple??dcfInputs.exitMultiple};
- return calculateDCF(f,h,d,a).enterpriseValue;
+ const result=calculateDCF(f,h,d,a);
+ return result.valid?result.enterpriseValue:null;
 }
 function formatNumber(value,d=1){return Number.isFinite(value)?value.toLocaleString("en-IN",{minimumFractionDigits:d,maximumFractionDigits:d}):"—";}
-return {ITEMS,ALIASES,DEFAULT_ASSUMPTIONS,DEFAULT_DCF,DEFAULT_PEERS,SAMPLE,clone,blankHistory,defaultProject,normaliseLabel,mapLabel,parseNumber,recordsFromRows,parseScreenerDataSheet,num,historyFromRecords,historicalRatios,validateHistory,buildForecast,calculateWACC,calculateDCF,peerMultiples,peerStatistics,operatingScenario,formatNumber};
+return {ITEMS,ALIASES,DEFAULT_ASSUMPTIONS,DEFAULT_DCF,DEFAULT_PEERS,SAMPLE,clone,blankHistory,defaultProject,normaliseLabel,mapLabel,parseNumber,recordsFromRows,parseScreenerDataSheet,num,historyFromRecords,historicalRatios,validateHistory,parseFinancialPeriod,periodSort,modelReadiness,validateForecastAssumptions,validateDCFInputs,buildForecast,calculateWACC,calculateDCF,peerMultiples,peerStatistics,operatingScenario,formatNumber};
 });

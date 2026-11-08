@@ -1,52 +1,101 @@
-name: Deploy ModelForge to GitHub Pages
+name: ModelForge CI and GitHub Pages
+
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
+
 permissions:
   contents: read
-  pages: write
-  id-token: write
+
 concurrency:
-  group: pages
+  group: modelforge-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
   build:
+    # Internal PRs are dispatched by bootstrap-pr.yml after the first lockfile
+    # is committed. Fork PRs run this workflow directly with read-only access.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    name: Browser, financial engine and Excel checks
     runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Validate application files
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "26"
+
+      - name: Generate an ephemeral lockfile for read-only fork PRs
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && hashFiles('package-lock.json') == ''
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund --lockfile-version=3
+
+      - name: Require a lockfile
+        run: test -s package-lock.json
+
+      - name: Install exact locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Validate JavaScript source
         run: |
-          test -f index.html
-          test -f styles.css
-          test -f engine.js
-          test -f workbook.js
-          test -f app-main.js
           node --check engine.js
           node --check workbook.js
           node --check app-main.js
-      - name: Install workbook test dependency
-        run: npm install --no-audit --no-fund
-      - name: Run financial engine and Excel formula tests
+          node --check universe.js
+          node --check tests/browser.test.cjs
+          node --check tests/excel-recalc.test.cjs
+
+      - name: Install Chromium for browser tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Install LibreOffice Calc for workbook recalculation tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libreoffice-calc
+          libreoffice --version
+
+      - name: Run all unit, workbook, browser and recalculation tests
         run: npm test
-      - name: Assemble static site with local Excel runtime
+
+      - name: Assemble static site with local vendor libraries and licence notices
         run: |
           mkdir -p _site/vendor _site/sample-data
-          cp index.html styles.css engine.js workbook.js app-main.js _site/
-          cp node_modules/xlsx-js-style/dist/xlsx.bundle.js _site/vendor/xlsx.bundle.js
-          cp node_modules/jszip/dist/jszip.min.js _site/vendor/jszip.min.js
+          cp index.html styles.css engine.js workbook.js app-main.js universe.js _site/
           cp sample-data/aster_industries.csv _site/sample-data/aster_industries.csv
+          cp LICENSE README.md THIRD_PARTY_NOTICES.md _site/
+          cp node_modules/xlsx-js-style/dist/xlsx.bundle.js _site/vendor/xlsx.bundle.js
+          cp node_modules/xlsx-js-style/LICENSE _site/vendor/XLSX-JS-STYLE-LICENSE
+          cp node_modules/jszip/dist/jszip.min.js _site/vendor/jszip.min.js
+          cp node_modules/jszip/LICENSE.markdown _site/vendor/JSZip-LICENSE.markdown
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+
   deploy:
+    name: Deploy GitHub Pages
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
