@@ -338,3 +338,15 @@ test("Screener importer does not assume generic other liabilities are current", 
   const h=E.historyFromRecords(parsed.records,{});
   assert.equal(h.BS.otherLiabilities[0],null);
 });
+
+test("wide-format Excel import recognises FY-prefixed period columns", () => {
+  const rows = [
+    {"FY 2024": 100, "FY 2025": 120, "Line item": "Revenue"},
+    {"FY 2024": -55, "FY 2025": -62, "Line item": "Cost of goods sold"}
+  ];
+  const records = E.recordsFromRows(rows, "Income Statement");
+  const history = E.historyFromRecords(records, {});
+  assert.deepEqual(history.periods, ["2024", "2025"]);
+  assert.deepEqual(history.IS.revenue, [100,120]);
+  assert.deepEqual(history.IS.cogs, [-55,-62]);
+});
