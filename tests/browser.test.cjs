@@ -196,7 +196,8 @@ test("existing-company picker loads exactly 100 or 200 NSE constituents without 
     assert.equal(project.history.IS.revenue[0], null, "a real company must never inherit Aster demo financials");
     assert.match(project.importMeta.sourceNotes.join(" "), /No company financial values/);
     assert.match(await page.locator("#companyUniverseNotice").innerText(), /No financial statements or market quote are preloaded/);
-    assert.equal(await page.locator("#modelReadiness").innerText().then(t => t.includes("Model not ready for valuation")), true);
+    const readiness = await page.evaluate(() => window.ModelEngine.modelReadiness(window.ModelForge.getProject().history, "Annual").ready);
+    assert.equal(readiness, false, "empty directory selection should remain blocked from valuation");
     assert.deepEqual(pageErrors, []);
   } finally {
     await page.close();
