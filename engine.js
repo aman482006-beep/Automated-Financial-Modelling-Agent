@@ -592,7 +592,8 @@ function peerStatistics(peers){
 }
 function operatingScenario(h,a,years,dcfInputs,terminalGrowth,terminalMultiple,method){
  const f=buildForecast(h,a,years),d={...dcfInputs,terminalMethod:method||dcfInputs.terminalMethod,perpetualGrowth:terminalGrowth??dcfInputs.perpetualGrowth,exitMultiple:terminalMultiple??dcfInputs.exitMultiple};
- return calculateDCF(f,h,d,a).enterpriseValue;
+ const result=calculateDCF(f,h,d,a);
+ return result.valid?result.enterpriseValue:null;
 }
 function formatNumber(value,d=1){return Number.isFinite(value)?value.toLocaleString("en-IN",{minimumFractionDigits:d,maximumFractionDigits:d}):"—";}
 return {ITEMS,ALIASES,DEFAULT_ASSUMPTIONS,DEFAULT_DCF,DEFAULT_PEERS,SAMPLE,clone,blankHistory,defaultProject,normaliseLabel,mapLabel,parseNumber,recordsFromRows,parseScreenerDataSheet,num,historyFromRecords,historicalRatios,validateHistory,parseFinancialPeriod,periodSort,modelReadiness,validateForecastAssumptions,validateDCFInputs,buildForecast,calculateWACC,calculateDCF,peerMultiples,peerStatistics,operatingScenario,formatNumber};
