@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
 const { chromium } = require("playwright");
+const XLSX = require("xlsx-js-style");
 
 const ROOT = path.resolve(__dirname, "..");
 const TYPES = {
@@ -167,6 +168,79 @@ test("mobile viewport can navigate and read the financial model", async () => {
     assert.ok(await page.locator("#dcfEV").isVisible());
     await page.locator('#nav [data-page="data"]').click();
     assert.equal(await page.locator("#importPanel").isVisible(), true);
+  } finally {
+    await page.close();
+  }
+});
+
+test("existing-company picker loads exactly 100 or 200 NSE constituents without demo financials", async () => {
+  const { page, pageErrors } = await openPage();
+  try {
+    await page.locator("#chooseExistingCompany").click();
+    assert.equal(await page.locator("#existingCompanyPanel").isVisible(), true);
+    assert.equal(await page.locator("#universeResults .universe-row").count(), 100);
+    assert.match(await page.locator("#universeSummary").innerText(), /100 of 100/);
+
+    await page.locator("#universeNifty200").click();
+    assert.equal(await page.locator("#universeResults .universe-row").count(), 200);
+    assert.match(await page.locator("#universeSummary").innerText(), /200 of 200/);
+
+    await page.locator("#universeSearch").fill("RELIANCE");
+    assert.equal(await page.locator("#universeResults .universe-row").count(), 1);
+    await page.locator('[data-select-universe="RELIANCE"]').click();
+    await page.waitForFunction(() => window.ModelForge.getProject().security?.symbol === "RELIANCE");
+    const project = await page.evaluate(() => window.ModelForge.getProject());
+    assert.equal(project.profile.name, "Reliance Industries Ltd.");
+    assert.equal(project.profile.symbol, "RELIANCE");
+    assert.deepEqual(project.history.periods.length, 1);
+    assert.equal(project.history.IS.revenue[0], null, "a real company must never inherit Aster demo financials");
+    assert.match(project.importMeta.sourceNotes.join(" "), /No company financial values/);
+    assert.match(await page.locator("#companyUniverseNotice").innerText(), /No financial statements or market quote are preloaded/);
+    assert.equal(await page.locator("#modelReadiness").innerText().then(t => t.includes("Model not ready for valuation")), true);
+    assert.deepEqual(pageErrors, []);
+  } finally {
+    await page.close();
+  }
+});
+
+test("Load opens the file picker and imports multi-sheet Excel after title rows", async () => {
+  const { page, pageErrors } = await openPage();
+  try {
+    const wb = XLSX.utils.book_new();
+    const add = (name, headers, rows) => {
+      const sheet = XLSX.utils.aoa_to_sheet([["ACME INDUSTRIES · HISTORICAL FINANCIALS"], headers, ...rows]);
+      XLSX.utils.book_append_sheet(wb, sheet, name);
+    };
+    add("Income Statement",
+      ["Period","Revenue","Cost of goods sold","Gross profit","Employee expenses","Other operating expenses","EBITDA","D&A","EBIT","Interest expense","Profit before tax","Tax expense","Net income"],
+      [["FY 2024",1000,-520,480,-140,-110,230,-20,210,-10,200,-50,150],["FY 2025",1100,-570,530,-150,-120,260,-22,238,-12,226,-56,170]]);
+    add("Balance Sheet",
+      ["Period","Cash and cash equivalents","Accounts receivable","Inventory","Other current assets","PP&E","Total assets","Accounts payable","Short-term debt","Long-term debt","Other operating liabilities","Shareholders' equity","Total liabilities and equity"],
+      [["FY 2024",100,120,80,20,500,820,90,40,200,90,400,820],["FY 2025",120,130,85,25,540,900,95,45,180,95,485,900]]);
+    add("Cash Flow",
+      ["Period","Cash flow from operations","Capital expenditure","Cash flow from investing","Cash flow from financing","Free cash flow"],
+      [["FY 2024",180,-60,-60,-30,120],["FY 2025",200,-65,-65,-25,135]]);
+    const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    const chooserPromise = page.waitForEvent("filechooser");
+    await page.locator("#loadCompanyData").click();
+    const chooser = await chooserPromise;
+    await chooser.setFiles({ name: "ACME_Annual_Statements.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer });
+    await page.waitForFunction(() => window.ModelForge.getProject().history.IS.revenue[1] === 1100);
+    const project = await page.evaluate(() => ({
+      periods: window.ModelForge.getProject().history.periods,
+      revenue: window.ModelForge.getProject().history.IS.revenue,
+      cash: window.ModelForge.getProject().history.BS.cash,
+      capex: window.ModelForge.getProject().history.CF.capex,
+      fcf: window.ModelForge.getProject().history.CF.fcf,
+      readiness: window.ModelForge.getProject().history.BS.totalAssets[1] - window.ModelForge.getProject().history.BS.totalLiabEquity[1]
+    }));
+    assert.deepEqual(project.periods, ["2024","2025"]);
+    assert.deepEqual(project.revenue, [1000,1100]);
+    assert.deepEqual(project.cash, [100,120]);
+    assert.deepEqual(project.capex, [-60,-65]);
+    assert.deepEqual(project.fcf, [120,135]);
+    assert.equal(project.readiness, 0);
+    assert.deepEqual(pageErrors, []);
   } finally {
     await page.close();
   }
