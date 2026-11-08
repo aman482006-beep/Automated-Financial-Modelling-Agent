@@ -108,7 +108,7 @@ function recordsFromRows(rows,sheetName="",fileName=""){
   });
   return out;
  }
- const periodColumns=keys.filter(key=>/^(?:19|20)\d{2}$|^Q[1-4][ -]?(?:19|20)\d{2}$/i.test(String(key).trim()));
+ const periodColumns=keys.filter(key=>/^(?:(?:FY\s*)?(?:19|20)\d{2}(?:\s*Q[1-4])?|Q[1-4][ -]?(?:19|20)\d{2})$/i.test(String(key).trim()));
  const labelKey=itemKey||keys.find(key=>!periodColumns.includes(key));
  if(labelKey&&periodColumns.length){
   rows.forEach(row=>periodColumns.forEach(periodKey=>{
