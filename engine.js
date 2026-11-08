@@ -422,13 +422,19 @@ function modelReadiness(h,frequency="Annual"){
   ["Short-term debt","BS","shortDebt"],
   ["Long-term debt / total borrowings","BS","longDebt"],
   ["Other operating liabilities","BS","otherLiabilities"],
-  ["Shareholders' equity","BS","equity"]
+  ["Shareholders' equity","BS","equity"],
+  ["Total assets","BS","totalAssets"],
+  ["Total liabilities and equity","BS","totalLiabEquity"]
  ];
  const missing=required.filter(([,group,key])=>{
   const value=h[group]?.[key]?.[index];
   return value===null||value===undefined||!Number.isFinite(Number(value));
  }).map(([label])=>label);
  if(missing.length)blockers.push("Latest period is missing required forecast inputs: "+missing.join(", ")+". Enter the reported value, including an explicit zero where zero is correct.");
+ const latestAssets=h.BS?.totalAssets?.[index],latestLiabilitiesEquity=h.BS?.totalLiabEquity?.[index];
+ if(Number.isFinite(Number(latestAssets))&&Number.isFinite(Number(latestLiabilitiesEquity))&&Math.abs(Number(latestAssets)-Number(latestLiabilitiesEquity))>=0.01){
+  blockers.push("The latest balance sheet does not reconcile: total assets differ from total liabilities and equity by "+(Number(latestAssets)-Number(latestLiabilitiesEquity)).toFixed(2)+". Resolve the difference before forecasting.");
+ }
  const periodOrder=h.periods.every((period,i)=>i===0||periodSort(h.periods[i-1],period)<0);
  if(!periodOrder)blockers.push("Reporting periods must be unique and in chronological order.");
  return {ready:blockers.length===0,blockers};
