@@ -62,7 +62,7 @@ function blankHistory(periods){
  return h;
 }
 function defaultProject(){
- const h=clone(SAMPLE);return {profile:{name:h.name,analyst:h.analyst,industry:h.industry,valuationDate:h.valuationDate,currency:h.currency,unit:h.unit,frequency:h.frequency,sharesOutstanding:h.sharesOutstanding},history:{periods:h.periods,IS:h.IS,BS:h.BS,CF:h.CF},assumptions:clone(DEFAULT_ASSUMPTIONS),dcf:clone(DEFAULT_DCF),peers:clone(DEFAULT_PEERS),mapping:{},rawRecords:[],theme:"light",forecastYears:5};
+ const h=clone(SAMPLE);return {profile:{name:h.name,analyst:h.analyst,industry:h.industry,valuationDate:h.valuationDate,currency:h.currency,unit:h.unit,frequency:h.frequency,sharesOutstanding:h.sharesOutstanding},history:{periods:h.periods,IS:h.IS,BS:h.BS,CF:h.CF},assumptions:clone(DEFAULT_ASSUMPTIONS),dcf:clone(DEFAULT_DCF),peers:clone(DEFAULT_PEERS),mapping:{},rawRecords:[],importMeta:{source:"Synthetic demo dataset",sourceFiles:["sample-data/aster_industries.csv"],importedAt:"",sourceNotes:["Aster Industries is fictional demonstration data, not a real issuer or filing."]},theme:"light",forecastYears:5};
 }
 function normaliseLabel(s){return String(s??"").toLowerCase().normalize("NFKD").replace(/[^a-z0-9]/g,"");}
 function mapLabel(s){return ALIASES[normaliseLabel(s)]||null;}
