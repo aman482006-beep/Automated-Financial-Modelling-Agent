@@ -208,3 +208,27 @@ body[data-theme="warm"] .start-panel{background:linear-gradient(112deg,#fffdf8,#
  .export-header p{font-size:10px}
  .export-module-icon{width:28px;height:28px}
 }
+
+
+/* Investor framework cards */
+.investor-intro{margin-bottom:15px}
+.investor-intro>b,.investor-more>b{display:block;font:700 12px Manrope;color:var(--ink)}
+.investor-intro>p,.investor-more>p{margin:6px 0 0;color:var(--muted);font-size:10px;line-height:1.65}
+.investor-framework-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:14px}
+.investor-card{display:grid;grid-template-columns:132px minmax(0,1fr);gap:17px;align-items:center;min-width:0;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:7px;box-shadow:var(--shadow)}
+.investor-portrait{height:174px;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;border-radius:5px;background:var(--blue-soft)}
+.investor-portrait img{display:block;width:100%;height:100%;object-fit:contain;object-position:center bottom}
+.investor-kicker{display:block;margin-bottom:7px;color:var(--blue);font:9px 'DM Mono';letter-spacing:.45px;line-height:1.5}
+.investor-copy h2{margin:0 0 7px;color:var(--ink);font:700 16px Manrope;letter-spacing:-.25px}
+.investor-copy p{margin:0 0 9px;color:var(--muted);font-size:10px;line-height:1.6}
+.investor-copy ul{margin:0 0 9px;padding-left:15px;color:var(--ink);font-size:10px;line-height:1.65}
+.investor-copy li{padding-left:1px;margin:2px 0}
+.investor-copy .text-link{padding:2px 0;font-size:10px}
+.investor-more{margin-top:0}
+@media(max-width:760px){
+  .investor-framework-grid{grid-template-columns:1fr;gap:10px}
+  .investor-card{grid-template-columns:106px minmax(0,1fr);gap:12px;padding:12px}
+  .investor-portrait{height:145px}
+  .investor-copy h2{font-size:14px}
+  .investor-copy p,.investor-copy ul{font-size:10px}
+}
