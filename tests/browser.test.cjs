@@ -196,7 +196,7 @@ test("existing-company picker loads exactly 100 or 200 NSE constituents without 
     assert.equal(project.profile.symbol, "RELIANCE");
     assert.deepEqual(project.history.periods.length, 1);
     assert.equal(project.history.IS.revenue[0], null, "a real company must never inherit Aster demo financials");
-    assert.match(project.importMeta.sourceNotes.join(" "), /No company financial values/);
+    assert.match(project.importMeta.sourceNotes.join(" "), /No financial values.*fabricated or prefilled/);
     assert.match(await page.locator("#companyUniverseNotice").innerText(), /No financial statements or market quote are preloaded/);
     const readiness = await page.evaluate(() => window.ModelEngine.modelReadiness(window.ModelForge.getProject().history, "Annual").ready);
     assert.equal(readiness, false, "empty directory selection should remain blocked from valuation");
