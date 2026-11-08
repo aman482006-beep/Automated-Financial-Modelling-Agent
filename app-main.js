@@ -38,7 +38,7 @@ function persist(){try{localStorage.setItem(KEY,JSON.stringify(project));$("#sav
 function toast(msg){const el=$("#toast");el.textContent=msg;el.classList.add("show");clearTimeout(noticeTimer);noticeTimer=setTimeout(()=>el.classList.remove("show"),2500)}
 function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function n(v){return E.num(v)}
-function fmt(v,d=1){return E.formatNumber(Number(v),d)}
+function fmt(v,d=1){return v===null||v===undefined||v===""?"—":E.formatNumber(Number(v),d)}
 function pct(v,d=1){return Number.isFinite(v)?(v*100).toFixed(d)+"%":"—"}
 function sym(){return symbols[project.profile.currency]||project.profile.currency+" "}
 function cash(v,d=1){return Number.isFinite(v)?sym()+fmt(v,d):"—"}
@@ -91,7 +91,7 @@ function renderHistoryEditor(){
 }
 function renderHistory(){
  const r=ratios,h=project.history,first=r[0]||{},last=r.at(-1)||{},cagr=r.length>1&&n(h.IS.revenue[0])>0?Math.pow(n(h.IS.revenue.at(-1))/n(h.IS.revenue[0]),1/(r.length-1))-1:null;
- $("#historyMetrics").innerHTML=[metric("REVENUE CAGR",pct(cagr),"First to latest"),metric("EBITDA MARGIN",pct(last.ebitdaMargin),"Latest reported"),metric("RETURN ON EQUITY",pct(last.roe),"Average equity basis"),metric("FREE CASH FLOW",cash(last.freeCashFlow),"Latest reported / derived")].join("");
+ $("#historyMetrics").innerHTML=[metric("REVENUE CAGR",pct(cagr),"First to latest"),metric("EBITDA MARGIN",pct(last.ebitdaMargin),"Latest reported"),metric("RETURN ON EQUITY",pct(last.roe),"Average equity basis"),metric("FREE CASH FLOW",cash(last.freeCashFlow),last.freeCashFlow===null?"Not reported / capex unavailable":"Reported or CFO less disclosed capex")].join("");
  const defs=[["Revenue growth","revenueGrowth","pct"],["Gross profit margin","grossMargin","pct"],["EBITDA margin","ebitdaMargin","pct"],["EBIT margin","ebitMargin","pct"],["Net profit margin","netMargin","pct"],["Return on equity","roe","pct"],["Return on assets","roa","pct"],["Return on capital employed","roce","pct"],["Current ratio","currentRatio","x"],["Quick ratio","quickRatio","x"],["Debt / equity","debtEquity","x"],["Interest coverage","interestCoverage","x"],["Asset turnover","assetTurnover","x"],["Working capital","workingCapital","money"],["Free cash flow","freeCashFlow","money"]];
  $("#ratioTable").innerHTML=table(["Metric",...r.map(x=>x.period)],defs.map(([label,k,type])=>[label,...r.map(x=>type==="pct"?pct(x[k]):type==="money"?cash(x[k]):type==="x"?fmt(x[k],2)+"x":"")]));
  renderHistoryEditor();
@@ -182,7 +182,7 @@ function drawCharts(){
  const h=project.history,periods=h.periods;
  chart("revenueChart",[{values:h.IS.revenue.map(x=>x===null?NaN:n(x)).concat(forecast.map(x=>x.revenue)),color:"#316bd0"}],periods.concat(forecast.map(x=>x.year)));
  chart("marginChart",[{values:ratios.map(x=>x.grossMargin===null?NaN:x.grossMargin*100),color:"#316bd0"},{values:ratios.map(x=>x.ebitdaMargin===null?NaN:x.ebitdaMargin*100),color:"#20966c"},{values:ratios.map(x=>x.netMargin===null?NaN:x.netMargin*100),color:"#d49b3d"}],periods);
- chart("cashChart",[{values:h.IS.ebitda.map(x=>x===null?NaN:n(x)),color:"#316bd0"},{values:h.CF.fcf.map(x=>x===null?NaN:n(x)),color:"#20966c"}],periods);
+ chart("cashChart",[{values:h.IS.ebitda.map(x=>x===null?NaN:n(x)),color:"#316bd0"},{values:ratios.map(x=>x.freeCashFlow===null?NaN:n(x.freeCashFlow)),color:"#20966c"}],periods);
  chart("dcfChart",[{values:valuation.flows.map(x=>x.ufcf),color:"#316bd0"},{values:valuation.flows.map(x=>x.ufcf*x.discountFactor),color:"#209b6c"}],valuation.flows.map(x=>x.year));
 }
 function renderReadiness(){
