@@ -2,7 +2,7 @@
 "use strict";
 const E=window.ModelEngine,$=s=>document.querySelector(s),$$=s=>Array.from(document.querySelectorAll(s));
 const KEY="modelforge.project.v2",symbols={INR:"₹",USD:"$",EUR:"€",GBP:"£",SGD:"S$"};
-let project=normaliseProject(loadSaved()||E.defaultProject()),forecast=[],ratios=[],valuation,modelStatus,noticeTimer;
+let project=normaliseProject(loadSaved()||E.defaultProject()),forecast=[],ratios=[],valuation,modelStatus,noticeTimer,universeSize=100;
 const EMPTY_VALUATION={valid:false,errors:["Complete the required historical inputs before calculating valuation."],wacc:null,costEquity:null,equityWeight:null,debtWeight:null,flows:[],pvForecast:null,terminalValue:null,pvTerminal:null,enterpriseValue:null,netDebt:null,equityValue:null,perShare:null};
 
 function normaliseProject(p){
@@ -207,7 +207,37 @@ function renderSourceTrace(){
  const notes=meta.sourceNotes||[];
  el.innerHTML='<div><b>Source</b><span>'+esc(source)+'</span></div><div><b>Files</b><span>'+esc(files.length?files.join(", "):"No imported files")+'</span></div><div><b>Imported</b><span>'+esc(imported)+'</span></div><div><b>Source labels mapped</b><span>'+mapped+' / '+labels.length+'</span></div>'+(notes.length?'<ul>'+notes.map(note=>'<li>'+esc(note)+'</li>').join("")+'</ul>':"");
 }
-function renderEverything(){renderOverview();renderValidation();renderHistory();renderForecast();renderDCF();renderPeers();renderSensitivity();renderAssistantContext();renderReadiness();renderSourceTrace();drawCharts()}
+function renderEverything(){renderOverview();renderValidation();renderHistory();renderForecast();renderDCF();renderPeers();renderSensitivity();renderAssistantContext();renderReadiness();renderSourceTrace();renderCompanyUniverseNotice();drawCharts()}
+function renderCompanyUniverseNotice(){
+ const el=$("#companyUniverseNotice");if(!el)return;const security=project.security;
+ if(!security){el.hidden=true;el.innerHTML="";return;}
+ el.hidden=false;el.innerHTML='<strong>Selected issuer:</strong> '+esc(security.name)+' ('+esc(security.symbol)+') · '+esc(security.universeIndex||"NSE index universe")+' · data snapshot '+esc(security.asOf||"—")+'. <strong>No financial statements or market quote are preloaded.</strong> Upload verified filings or a source workbook; the model remains blocked until required inputs reconcile.';
+}
+function renderUniverse(){
+ const api=window.ModelForgeUniverse,list=$("#universeResults"),summary=$("#universeSummary");if(!list||!summary)return;
+ if(!api?.companies){summary.textContent="Company directory could not be loaded. Use Load to import a statement file.";list.innerHTML="";return;}
+ const pool=api.companies.filter(x=>universeSize===100?x.nifty100:x.nifty200),query=($("#universeSearch")?.value||"").trim().toLowerCase();
+ const results=pool.filter(x=>!query||x.name.toLowerCase().includes(query)||x.symbol.toLowerCase().includes(query)||x.sector.toLowerCase().includes(query));
+ summary.textContent="Showing "+results.length+" of "+pool.length+" companies · "+(universeSize===100?"Nifty 100":"Nifty 200")+" · sorted by company name";
+ list.innerHTML=results.length?results.map(x=>'<article class="universe-row"><div class="universe-company"><b>'+esc(x.name)+'</b><span>'+esc(x.symbol)+' · '+esc(x.sector)+'</span></div><button type="button" class="btn btn-outline" data-select-universe="'+esc(x.symbol)+'">Choose</button></article>').join(""):'<div class="universe-empty">No companies match that search.</div>';
+}
+function showExistingCompanyPicker(){const panel=$("#existingCompanyPanel");if(!panel)return;panel.hidden=false;renderUniverse();panel.scrollIntoView({behavior:"smooth",block:"start"});$("#universeSearch")?.focus({preventScroll:true});}
+function setUniverseSize(size){
+ universeSize=size===200?200:100;const is100=universeSize===100;
+ $("#universeNifty100")?.classList.toggle("active",is100);$("#universeNifty200")?.classList.toggle("active",!is100);
+ $("#universeNifty100")?.setAttribute("aria-pressed",String(is100));$("#universeNifty200")?.setAttribute("aria-pressed",String(!is100));renderUniverse();
+}
+function selectUniverseCompany(symbol){
+ const company=window.ModelForgeUniverse?.companies?.find(x=>x.symbol===symbol);if(!company){toast("Company not found in the bundled NSE directory.");return;}
+ const analyst=project.profile?.analyst||"Financial Analyst",p=E.defaultProject();
+ p.profile={...p.profile,name:company.name,analyst,industry:company.sector,valuationDate:new Date().toISOString().slice(0,10),currency:"INR",unit:"crores",frequency:"Annual",sharesOutstanding:null,symbol:company.symbol,exchange:"NSE"};
+ p.history=E.blankHistory(["FY"+new Date().getFullYear()]);p.peers=[];p.rawRecords=[];p.mapping={};p.dcf={...p.dcf,equityMarketValue:null,debtMarketValue:null,sharesOutstanding:null};
+ p.security={name:company.name,symbol:company.symbol,sector:company.sector,exchange:"NSE",universeIndex:company.nifty100?"Nifty 100":"Nifty 200",nifty100:company.nifty100,asOf:window.ModelForgeUniverse.asOf};
+ p.importMeta={source:"NSE Nifty 100 / Nifty 200 constituent directory",sourceFiles:[],importedAt:new Date().toISOString(),sourceNotes:[window.ModelForgeUniverse.financialDataNote,"Index membership is a universe filter, not a daily market-cap rank. Verify current constituents and identifiers against NSE before use.","No financial values, share price, market capitalisation or shares outstanding have been fabricated or prefilled."]};
+ project=normaliseProject(p);syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();persist();showPage("data");
+ $("#companyUniverseNotice")?.scrollIntoView({behavior:"smooth",block:"center"});toast(company.name+" selected. Upload its verified financials to populate the model.");
+}
+
 function parseCsv(txt){
  const lines=txt.replace(/^\uFEFF/,"").split(/\r?\n/).filter(x=>x.trim()),parse=line=>{let arr=[],v="",q=false;for(let i=0;i<line.length;i++){let ch=line[i];if(ch==='"'&&line[i+1]==='"'&&q){v+='"';i++}else if(ch==='"')q=!q;else if(ch===","&&!q){arr.push(v);v=""}else v+=ch}arr.push(v);return arr};if(!lines.length)return [];const heads=parse(lines[0]).map(x=>x.trim());return lines.slice(1).map(l=>{const values=parse(l),obj={};heads.forEach((k,i)=>obj[k]=values[i]??"");return obj});
 }
@@ -259,6 +289,17 @@ function showImportError(error){
  setImportStatus("Import failed: "+message,true);
  toast("Import failed — see the detailed message in the import panel.");
 }
+function recordsFromWorksheet(sheet,sheetName,fileName,XLSXLib){
+ const matrix=XLSXLib.utils.sheet_to_json(sheet,{header:1,defval:null,raw:true,blankrows:false});if(!matrix.length)return [];
+ const maxOffset=Math.min(30,Math.max(0,matrix.length-1));let best=[],bestScore=-1;
+ for(let offset=0;offset<=maxOffset;offset++){
+  const rows=XLSXLib.utils.sheet_to_json(sheet,{range:offset,defval:null,raw:true,blankrows:false});if(!rows.length)continue;
+  const candidate=E.recordsFromRows(rows,sheetName,fileName);if(!candidate.length)continue;
+  const labels=new Set(candidate.map(x=>E.normaliseLabel(x.label))),periods=new Set(candidate.map(x=>String(x.period))),mapped=candidate.filter(x=>x.mapped||E.mapLabel(x.label)).length;
+  const score=candidate.length+labels.size*2+periods.size*2+mapped*2;if(score>bestScore){best=candidate;bestScore=score;}
+ }
+ return best.length?best:null;
+}
 async function fileArrayBuffer(file){
  if(typeof file.arrayBuffer==="function")return file.arrayBuffer();
  return new Promise((resolve,reject)=>{
@@ -290,21 +331,17 @@ async function importStatements(files){
    }
    if(!workbook?.SheetNames?.length)throw new Error(file.name+" contains no readable worksheets.");
    const orderedSheets=[...workbook.SheetNames].sort((a,b)=>{
-    const aa=E.normaliseLabel(a)==="datasheet"?0:1,bb=E.normaliseLabel(b)==="datasheet"?0:1;
-    return aa-bb;
+    const aa=E.normaliseLabel(a)==="datasheet"?0:1,bb=E.normaliseLabel(b)==="datasheet"?0:1;return aa-bb;
    });
    let detectedScreener=false;
    for(const name of orderedSheets){
     const matrix=XLSXLib.utils.sheet_to_json(workbook.Sheets[name],{header:1,defval:null,raw:true,blankrows:true});
     const parsed=E.parseScreenerDataSheet(matrix);
-    if(parsed?.records?.length){
-     screenerImport=parsed;records=records.concat(parsed.records);detectedScreener=true;break;
-    }
+    if(parsed?.records?.length){screenerImport=parsed;records=records.concat(parsed.records);detectedScreener=true;break;}
    }
    if(!detectedScreener){
-    workbook.SheetNames.forEach(name=>{
-     records=records.concat(E.recordsFromRows(XLSXLib.utils.sheet_to_json(workbook.Sheets[name],{defval:null,raw:true}),name,file.name));
-    });
+    const emptySheets=[];workbook.SheetNames.forEach(name=>{const extracted=recordsFromWorksheet(workbook.Sheets[name],name,file.name,XLSXLib);if(extracted?.length)records=records.concat(extracted);else emptySheets.push(name);});
+    window.ModelForgeLastImportNotes=emptySheets.length?["No financial table was detected on worksheets: "+emptySheets.join(", ")+". Check headings, period columns and hidden sheets."]:[];
    }
    filesLoaded++;
   }else throw new Error("Unsupported file type: "+file.name+". Upload a .csv, .xlsx or .xls file.");
@@ -328,12 +365,13 @@ async function importStatements(files){
   renderAssumptions();renderWACC();renderTerminal();
  }else{
   const fresh=E.defaultProject();
-  fresh.profile.name=files.length===1?files[0].name.replace(/\.(csv|xlsx|xls)$/i,""):"Imported financial data";
+  fresh.profile.name=project.security?.name||(files.length===1?files[0].name.replace(/\.(csv|xlsx|xls)$/i,""):"Imported financial data");
+  if(project.security)fresh.security=project.security;
   fresh.rawRecords=records;
   fresh.mapping={};
   Array.from(new Set(records.map(r=>r.label))).forEach(label=>{fresh.mapping[label]=E.mapLabel(label)||"ignore";});
   fresh.history=E.historyFromRecords(records,fresh.mapping);
-  fresh.importMeta={source:"User-provided CSV / Excel",sourceFiles:files.map(file=>file.name),importedAt:new Date().toISOString(),sourceNotes:["Source figures were supplied by the user. Verify every mapped value against the original filing; the app does not independently fetch or verify financial statements."]};
+  fresh.importMeta={source:"User-provided CSV / Excel",sourceFiles:files.map(file=>file.name),importedAt:new Date().toISOString(),sourceNotes:["Source figures were supplied by the user. Verify every mapped value against the original filing; the app does not independently fetch or verify financial statements.",...(window.ModelForgeLastImportNotes||[]),...(fresh.security?["Uploaded workbook has not been independently authenticated as belonging to the selected NSE security. Check issuer name, symbol, reporting entity and period."]:[])]};
   project=normaliseProject(fresh);
   renderAssumptions();renderWACC();renderTerminal();
  }
@@ -374,6 +412,7 @@ async function exportCsvPack(){
 }
 function openExportCenter(){
  const dialog=$("#exportDialog");if(!dialog)return;
+ const prepared=$("#exportPreparedBy");if(prepared)prepared.value=project.profile.analyst||"";
  if(typeof dialog.showModal==="function"){if(!dialog.open)dialog.showModal();}
  else dialog.setAttribute("open","");
 }
@@ -392,7 +431,9 @@ function generateExcelReport(){
    throw new Error("Model export blocked: complete the required annual inputs and resolve DCF validation warnings before exporting forecasts or valuation.");
   }
   const layout="tabs";
-  const filename=window.ModelWorkbook.exportWorkbook(project,forecast,valuation,ratios,{selectedSheets,layout});
+  const preparedBy=String($("#exportPreparedBy")?.value||project.profile.analyst||"").trim().slice(0,80);
+  if(preparedBy){project.profile.analyst=preparedBy;$("#analystName").value=preparedBy;persist();}
+  const filename=window.ModelWorkbook.exportWorkbook(project,forecast,valuation,ratios,{selectedSheets,layout,preparedBy});
   closeExportCenter();
   toast("Report downloaded: "+filename);
  }catch(error){toast("Export failed: "+(error?.message||String(error)));}
@@ -479,7 +520,12 @@ function bindEvents(){
  $("#addManualPeriod").addEventListener("click",addManualPeriod);
  $("#saveManualEntry").addEventListener("click",saveManualEntry);
  $("#startBlank").addEventListener("click",startBlank);
- $("#openImport").addEventListener("click",()=>{showPage("data");$("#importPanel").scrollIntoView({behavior:"smooth",block:"start"})});
+ $("#chooseExistingCompany").addEventListener("click",showExistingCompanyPicker);
+ $("#loadCompanyData").addEventListener("click",()=>{showPage("data");$("#importPanel").scrollIntoView({behavior:"smooth",block:"start"});$("#fileInput").click()});
+ $("#universeNifty100").addEventListener("click",()=>setUniverseSize(100));
+ $("#universeNifty200").addEventListener("click",()=>setUniverseSize(200));
+ $("#universeSearch").addEventListener("input",renderUniverse);
+ $("#universeResults").addEventListener("click",event=>{const button=event.target.closest("[data-select-universe]");if(button)selectUniverseCompany(button.dataset.selectUniverse);});
  $("#historyEditor").addEventListener("change",e=>{const el=e.target.closest("[data-hist-group]");if(!el)return;project.history[el.dataset.histGroup][el.dataset.histKey][n(el.dataset.histIndex)]=E.parseNumber(el.value);rebuild();persist()});
  $("#addPeriod").addEventListener("click",addPeriod);
  $("#forecastYears").addEventListener("change",e=>{project.forecastYears=n(e.target.value);rebuild();persist()});
@@ -524,7 +570,7 @@ function bindEvents(){
  $("#resetDemo").addEventListener("click",()=>{if(confirm("Reset all changes and restore the sample project?"))loadSample()});
 }
 function init(){
- bindEvents();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();
+ bindEvents();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();renderUniverse();
  // Build forecast and valuation before showPage() redraws the active overview charts.
  rebuild();
  showPage("overview");
@@ -536,7 +582,7 @@ function init(){
  }else{
   setTimeout(drawCharts,0);
  }
- window.ModelForge={getProject:()=>project,getForecast:()=>forecast,getValuation:()=>valuation,selfTest:()=>E.validateHistory(project.history)};
+ window.ModelForge={getProject:()=>project,getForecast:()=>forecast,getValuation:()=>valuation,selfTest:()=>E.validateHistory(project.history),selectCompany:selectUniverseCompany,renderUniverse,setUniverseSize};
 }
 init();
 })();
