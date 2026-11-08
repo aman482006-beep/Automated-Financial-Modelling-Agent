@@ -31,6 +31,7 @@ The repository uses GitHub Actions for publishing. In Settings → Pages, the pu
 - Trading comparables: EV/Revenue, EV/EBITDA, EV/EBIT, P/E and P/B with median and average statistics.
 - Sensitivity: WACC / perpetual growth, WACC / exit multiple and revenue-growth / EBITDA-margin scenarios.
 - Model assistant: deterministic responses tied to active model inputs and calculations.
+- Investor frameworks: portrait-led analytical checklists for Benjamin Graham, Warren Buffett, Charlie Munger and Peter Lynch. These are separate from the deterministic model assistant.
 - Export centre: choose the executive cover, assumptions, historical statements, forecast statements, ratios, DCF, comparables, sensitivity / scenario analysis and checks; export selected modules as separate worksheet tabs in one Excel workbook. The complete all-tabs Excel export preserves formulas, while selected exports are standalone value snapshots. A full CSV report pack is also available; its ZIP helper is bundled locally for the Pages deployment.
 - Themes: Light, Navy, Midnight, Emerald, Graphite and Warm paper.
 - Local project handling: localStorage autosave, JSON project download and restore.
@@ -90,6 +91,7 @@ Tests verify historical reconciliation, cash flow bridges, ratios, three-stateme
 ## Source layout
 
 - index.html — browser UI and script loading
+- assets/investors/ — transparent investor portrait cutouts used by the Investor frameworks page
 - styles.css — responsive interface and theme palette
 - engine.js — deterministic financial calculation engine
 - app-main.js — navigation, state, imports, editing and exports
