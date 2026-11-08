@@ -44,6 +44,7 @@ function exportWorkbook(project,forecast,valuation,ratios,options={}){
   throw new Error("Cannot export forecast or valuation sheets until the model passes annual data and DCF validation.");
  }
  const p=project.profile,h=project.history,a=project.assumptions,d=project.dcf,n=forecast.length,periods=h.periods,lastHist=h.periods.length,wb=X.utils.book_new();
+ const preparedBy=String(options.preparedBy||p.analyst||"Not specified").trim().slice(0,80)||"Not specified";
  const iRows={revenue:5,cogs:6,grossProfit:7,employeeExpenses:8,otherOpex:9,ebitda:10,da:11,ebit:12,interestExpense:13,pbt:14,tax:15,netIncome:16};
  const bRows={cash:5,ar:6,inventory:7,otherCurrentAssets:8,ppe:9,totalAssets:10,ap:11,shortDebt:12,longDebt:13,otherLiabilities:14,equity:15,totalLiabEquity:16};
  const cRows={cfo:5,capex:6,cfi:7,cff:8,fcf:9};
@@ -52,7 +53,7 @@ function exportWorkbook(project,forecast,valuation,ratios,options={}){
  const histCF=addHistorical(wb,"Historical CF",periods,h.CF,[["cfo","Cash flow from operations"],["capex","Capital expenditure"],["cfi","Cash flow from investing"],["cff","Cash flow from financing"],["fcf","Free cash flow"]]);
  const inputsRows=[
   ["ModelForge | Inputs and assumptions"],["Blue font / blue fill = editable source or assumption input. Formula cells link to these values."],
-  ["Company",p.name],["Prepared by",p.analyst],["Industry",p.industry],["Valuation date",p.valuationDate],["Currency",p.currency],["Reporting unit",p.unit],["Reporting frequency",p.frequency],["Forecast years",project.forecastYears],
+  ["Company",p.name],["Prepared by",preparedBy],["Industry",p.industry],["Valuation date",p.valuationDate],["Currency",p.currency],["Reporting unit",p.unit],["Reporting frequency",p.frequency],["Forecast years",project.forecastYears],
   ["FORECAST OPERATING ASSUMPTIONS"],["Revenue growth",a.revenueGrowth],["Gross margin",a.grossMargin],["Employee costs / revenue",a.employeePct],["Other operating expenses / revenue",a.otherOpexPct],["D&A / opening PP&E",a.daPct],["Effective tax rate",a.taxRate],["Capex / revenue",a.capexPct],["Receivable days",a.arDays],["Inventory days",a.inventoryDays],["Payable days",a.apDays],["Other current assets / revenue",a.otherCurrentAssetsPct],["Other operating liabilities / revenue",a.otherLiabilitiesPct],["Annual debt repayment",a.annualDebtRepayment],["Interest rate",a.interestRate],["Dividend payout ratio",a.dividendPayout],
   ["DCF AND WACC ASSUMPTIONS"],["Risk-free rate",d.riskFreeRate],["Equity risk premium",d.equityRiskPremium],["Levered beta",d.beta],["Pre-tax cost of debt",d.costOfDebt],["Market value of equity",d.equityMarketValue],["Market value of debt",d.debtMarketValue],["Shares outstanding (millions)",d.sharesOutstanding],["Terminal value method",d.terminalMethod==="growth"?"Perpetuity growth":"Exit EBITDA multiple"],["Perpetual growth rate",d.perpetualGrowth],["Exit EBITDA multiple",d.exitMultiple],["Cost of equity",""],["Equity weight",""],["Debt weight",""],["WACC",""]
  ];
@@ -342,12 +343,15 @@ function exportWorkbook(project,forecast,valuation,ratios,options={}){
  for(let j=0;j<n;j++){const r=4+j,C=col(j+2);formulaCell(checks,"C"+r,"="+q("Forecast BS")+"!"+C+"17",forecast[j].check);formulaCell(checks,"D"+r,'=IF(ABS(C'+r+')<0.01,"PASS","REVIEW")',Math.abs(forecast[j].check)<.01?"PASS":"REVIEW")}
  for(let j=0;j<periods.length;j++){const r=4+n+j,C=col(j+2);formulaCell(checks,"C"+r,"="+q("Historical BS")+"!"+C+"10-"+q("Historical BS")+"!"+C+"16",0);formulaCell(checks,"D"+r,'=IF(ABS(C'+r+')<0.01,"PASS","REVIEW")',"PASS")}
  // Cover sheet: concise, linked and presentable.
- const coverRows=[["MODELFORGE | FINANCIAL ANALYSIS REPORT"],["Company",p.name],["Prepared by",p.analyst],["Industry",p.industry],["Valuation date",p.valuationDate],["Currency / unit",p.currency+" / "+p.unit],["Reporting frequency",p.frequency],["Forecast horizon",n+" years"],[""],["VALUATION SUMMARY"],["WACC",""],["Enterprise value",""],["Net debt",""],["Equity value",""],["Value per share",""],[""],["REPORT STRUCTURE"],["Historical statements","Historical IS / Historical BS / Historical CF"],["Forecast statements","Forecast IS / Forecast BS / Forecast CF"],["Free cash flow","FCF · historical FCF, forecast FCF and UFCF bridge"],["Valuation","DCF / Comparables / Sensitivity"],["Controls","Inputs / Checks / Scenario Calc"]];
+ const coverRows=[["MODELFORGE | FINANCIAL ANALYSIS REPORT"],["Company",p.name],["Prepared by",preparedBy],["Industry",p.industry],["Valuation date",p.valuationDate],["Currency / unit",p.currency+" / "+p.unit],["Reporting frequency",p.frequency],["Forecast horizon",n+" years"],[""],["VALUATION SUMMARY"],["WACC",""],["Enterprise value",""],["Net debt",""],["Equity value",""],["Value per share",""],[""],["REPORT STRUCTURE"],["Historical statements","Historical IS / Historical BS / Historical CF"],["Forecast statements","Forecast IS / Forecast BS / Forecast CF"],["Free cash flow","FCF · historical FCF, forecast FCF and UFCF bridge"],["Valuation","DCF / Comparables / Sensitivity"],["Controls","Inputs / Checks / Scenario Calc"]];
+ coverRows.push(["NSE symbol",project.security?.symbol||p.symbol||"—"],["Exchange",project.security?.exchange||"—"],["Data source",project.importMeta?.source||"Manual entry"],["Model status","Analyst review required · source verification is not automated"]);
  const cover=addSheet(wb,"Cover",coverRows,[31,58]);title(cover,2,"MODELFORGE | FINANCIAL ANALYSIS REPORT");
  formulaCell(cover,"B11","="+q("Inputs")+"!B41",valuation.wacc);formulaCell(cover,"B12","="+q("DCF")+"!B"+(terminalRow+3),valuation.enterpriseValue||0);formulaCell(cover,"B13","="+q("DCF")+"!B"+(terminalRow+4),valuation.netDebt);formulaCell(cover,"B14","="+q("DCF")+"!B"+(terminalRow+5),valuation.equityValue||0);formulaCell(cover,"B15","="+q("DCF")+"!B"+(terminalRow+7),valuation.perShare||0);
  [10,17].forEach(r=>setStyle(cover,"A"+r,styles.section));
  // Workbook recalculate in Excel / LibreOffice when opened.
  wb.Workbook=wb.Workbook||{};wb.Workbook.CalcPr={calcId:191029,fullCalcOnLoad:true,forceFullCalc:true,calcMode:"auto"};
+ const preferredOrder=["Cover","Inputs","Historical IS","Historical BS","Historical CF","Forecast IS","Forecast BS","Forecast CF","FCF","Ratios","DCF","Comparables","Sensitivity","Scenario Calc","Checks"];
+ wb.SheetNames=preferredOrder.filter(name=>wb.Sheets[name]);
  const allSheets=wb.SheetNames.slice();
  const requested=Array.isArray(options.selectedSheets)?options.selectedSheets:[];
  const selected=allSheets.filter(name=>requested.includes(name));
@@ -404,6 +408,7 @@ function exportWorkbook(project,forecast,valuation,ratios,options={}){
  const safeName=(p.name||"Company").replace(/[^a-z0-9]+/gi,"_").replace(/^_+|_+$/g,"")||"Company";
  const suffix=Array.isArray(options.selectedSheets)?(layout==="single"?"_Consolidated_Report":completeSelection?"_Integrated_Financial_Model":"_Selected_Report"):"_Integrated_Financial_Model";
  const filename=safeName+suffix+".xlsx";
+ output.Props={Title:(p.name||"Company")+" | ModelForge Financial Model",Subject:"Integrated historical statements, forecast, DCF and scenario analysis",Author:preparedBy,Manager:preparedBy,Company:"ModelForge",Category:"Financial Model",Keywords:"3-statement, DCF, financial modelling, valuation",Comments:"Prepared by "+preparedBy+". Verify all source data, reporting basis and assumptions before use."};
  X.writeFile(output,filename,{cellStyles:true,compression:true});
  return filename;
 }
