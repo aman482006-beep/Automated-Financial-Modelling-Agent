@@ -211,7 +211,7 @@ function parseScreenerDataSheet(matrix){
   shortBorrowings:["shorttermborrowings","currentborrowings","shorttermdebt"],
   longBorrowings:["longtermborrowings","noncurrentborrowings","longtermdebt"],
   payables:["tradepayables","accountspayable","tradeandotherpayables"],
-  otherliabilities:["otherliabilities"],netblock:["netblock"],
+  otherCurrentLiabilities:["othercurrentliabilities","currentotherliabilities"],netblock:["netblock"],
   cwip:["capitalworkinprogress"],investments:["investments"],otherassets:["otherassets"],
   receivables:["receivables","debtors"],inventory:["inventory"],cash:["cashbank","cashandbank"]
  };
@@ -220,8 +220,10 @@ function parseScreenerDataSheet(matrix){
  for(let i=0;i<bPeriods.length;i++){
   const period=bPeriods[i];if(!period)continue;
   const get=key=>at(bRows[key],i);
-  const capital=get("sharecapital"),reserves=get("reserves"),borrowings=get("borrowings"),otherLiabilities=get("otherliabilities");
+  const capital=get("sharecapital"),reserves=get("reserves"),borrowings=get("borrowings");
+  const otherLiabilities=get("otherCurrentLiabilities");
   const shortBorrowings=get("shortBorrowings"),longBorrowings=get("longBorrowings"),payables=get("payables");
+  const unclassifiedLiabilities=at(findRow(bStart,bEnd,["otherliabilities"]),i);
   const netBlock=get("netblock"),cwip=get("cwip"),otherAssets=get("otherassets");
   const receivables=get("receivables"),inventory=get("inventory"),cash=get("cash");
   const equity=capital===null&&reserves===null?null:(capital||0)+(reserves||0);
@@ -236,6 +238,7 @@ function parseScreenerDataSheet(matrix){
   else if(borrowings!==null)add(period,"Long-term debt",Math.abs(borrowings),"BS.longDebt");
   if(payables!==null)add(period,"Accounts payable",Math.abs(payables),"BS.ap");
   if(otherLiabilities!==null)add(period,"Other operating liabilities",Math.abs(otherLiabilities),"BS.otherLiabilities");
+  if(unclassifiedLiabilities!==null)records.push({period,label:"Unclassified other liabilities",value:Math.abs(unclassifiedLiabilities),statement:"Screener.in Data Sheet"});
   if(ppe!==null)add(period,"Property, plant & equipment",ppe,"BS.ppe");
   if(otherCurrent!==null)add(period,"Other current assets",otherCurrent,"BS.otherCurrentAssets");
   if(receivables!==null)add(period,"Accounts receivable",Math.abs(receivables),"BS.ar");
@@ -275,6 +278,7 @@ function parseScreenerDataSheet(matrix){
    "Annual financials were imported from the supplied Screener.in Data Sheet. Check source values against the original filing.",
    "Short- and long-term borrowings are separated only when separate source lines exist. A combined Borrowings line is temporarily mapped to long debt for the total-net-debt bridge; review its maturity classification.",
    "Accounts payable and short-term debt remain missing when they are not disclosed separately. Enter or map them before using liquidity ratios or building a forecast.",
+   "An unqualified Other Liabilities line is preserved as unclassified; only an explicitly current-liability line is mapped into operating working capital. Review it in the mapping table.",
    "Investments are excluded from operating working capital. Other current assets are derived only from the Other Assets total after subtracting receivables, inventory and cash.",
    "Standalone capex is not supplied by the summary Data Sheet. Historical free cash flow is left blank; total investing cash flow is not treated as capex."
   ]
