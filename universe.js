@@ -1,5 +1,5 @@
 /* NSE Nifty company universe reference data.
- * Constituent snapshots checked against NSE-published index constituents as at 2026-11-06.
+ * Constituents transcribed from publicly displayed NSE index lists (snapshot dated 2026-11-06) and cross-checked for counts and symbols.
  * This is a security directory only; it is NOT a market-data or financial-statement feed.
  * Do not infer live market-cap ranks or financial inputs from this directory.
  */
@@ -11,15 +11,18 @@ const nifty100 = new Set(nifty100Symbols);
 const api = Object.freeze({
   asOf: "2026-11-06",
   exchange: "NSE",
-  source: "NSE Indices — Nifty 100 and Nifty 200 constituent lists",
+  source: "NSE index constituent snapshot (6 Nov 2026), checked against public constituent tables",
   sourceUrls: [
     "https://www.nseindia.com/static/products-services/indices-nifty100-index",
     "https://www.nseindia.com/static/products-services/indices-nifty200-index",
     "https://nsearchives.nseindia.com/content/indices/ind_nifty100list.csv",
-    "https://nsearchives.nseindia.com/content/indices/ind_nifty200list.csv"
+    "https://nsearchives.nseindia.com/content/indices/ind_nifty200list.csv",
+    "https://tipsheet.markets/indices/nifty-100/",
+    "https://tipsheet.markets/indices/nifty-200/"
   ],
   methodologyNote: "Nifty 100 represents the top 100 companies by full market capitalisation from the Nifty 500. Nifty 200 combines Nifty 100 with Nifty Full Midcap 100; it is not a simple daily top-200 market-cap ranking.",
   financialDataNote: "Preloaded fields are issuer name, NSE symbol, sector and index membership only. Financial statements, share count, prices and market capitalisation are not bundled. Load source filings or a licensed provider dataset before forecasting or valuation.",
+  licensingNote: "NSE Indices retains proprietary rights in its index names, compilation and constituent composition. Verify current members against NSE and obtain any required licence before institutional or commercial redistribution.",
   companies: raw.map(company => Object.freeze({...company, nifty100: nifty100.has(company.symbol), nifty200: true}))
 });
 if (root) root.ModelForgeUniverse = api;
