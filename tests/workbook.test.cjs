@@ -14,13 +14,15 @@ test("Excel report generates formula-linked statement, DCF, comps and sensitivit
  const f=E.buildForecast(p.history,p.assumptions,p.forecastYears);
  const ratios=E.historicalRatios(p.history);
  const valuation=E.calculateDCF(f,p.history,p.dcf,p.assumptions);
+ p.security={symbol:"TCS",exchange:"NSE"};
+ const preparedBy="ModelForge Test Analyst";
  const original=process.cwd(),dir=fs.mkdtempSync(path.join(os.tmpdir(),"modelforge-xlsx-"));
  let exportedWorkbook=null;
  const originalWriteFile=XLSX.writeFile;
  try{
   process.chdir(dir);
   XLSX.writeFile=(book,...args)=>{exportedWorkbook=book;return originalWriteFile.call(XLSX,book,...args);};
-  const file=window.ModelWorkbook.exportWorkbook(p,f,valuation,ratios);
+  const file=window.ModelWorkbook.exportWorkbook(p,f,valuation,ratios,{preparedBy});
   assert.ok(fs.existsSync(path.join(dir,file)),"Excel export file should exist");
   const wb=XLSX.readFile(path.join(dir,file),{cellFormula:true,cellStyles:true});
   for(const name of ["Cover","Inputs","Historical IS","Historical BS","Historical CF","Forecast IS","Forecast BS","Forecast CF","FCF","Ratios","DCF","Comparables","Sensitivity","Scenario Calc","Checks"])assert.ok(wb.SheetNames.includes(name),"Missing worksheet "+name);
@@ -49,6 +51,11 @@ test("Excel report generates formula-linked statement, DCF, comps and sensitivit
   formula("Scenario Calc","B15","Historical BS");
   formula("Scenario Calc","B28","Historical BS");
   formula("Checks","C4","Forecast BS");
+  assert.equal(wb.SheetNames[0],"Cover","Executive cover should be the first worksheet in the workbook");
+  assert.equal(wb.Sheets.Cover.B3.v,preparedBy,"Prepared-by name should appear on the workbook cover");
+  assert.equal(wb.Sheets.Inputs.B4.v,preparedBy,"Prepared-by name should appear on Inputs");
+  assert.equal(wb.Sheets.Cover.B23.v,"TCS","NSE symbol should appear in the cover provenance section");
+  assert.equal(wb.Props.Author,preparedBy,"Prepared-by name should be stored in Excel document properties");
   assert.equal(wb.Sheets.Inputs.B12.v,p.assumptions.revenueGrowth);
   assert.equal(wb.Sheets.Inputs.B35.v,"Perpetuity growth");
   assert.equal(wb.Sheets.Checks.D4.v,"PASS","Check formulas should store readable PASS / REVIEW text");
@@ -91,7 +98,7 @@ test("Excel exports always keep selected modules on separate worksheet tabs",t=>
   process.chdir(dir);
   const file=window.ModelWorkbook.exportWorkbook(p,f,v,r,{selectedSheets:["Cover","DCF"],layout:"single"});
   const wb=XLSX.readFile(file,{cellFormula:true});
-  assert.deepEqual(wb.SheetNames,["DCF","Cover"]);
+  assert.deepEqual(wb.SheetNames,["Cover","DCF"]);
   assert.ok(wb.Sheets.DCF.B3&&Number.isFinite(wb.Sheets.DCF.B3.v),"Selected DCF sheet should remain readable");
   assert.equal(wb.Sheets.DCF.B3.f,undefined,"Partial exports should be self-contained value snapshots");
   assert.ok(wb.Sheets.DCF["A9"].v,"DCF forecast schedule should be included");
