@@ -490,13 +490,6 @@ function saveManualEntry(){
  $("#manualEntryStatus").textContent=entered+" figures saved for "+period+".";
  toast("Financial figures saved for "+period+".");
 }
-function startBlank(){
- const p=E.defaultProject(),year=String(new Date().getFullYear());
- p.profile={name:"",analyst:"Financial Analyst",industry:"",valuationDate:new Date().toISOString().slice(0,10),currency:"INR",unit:"millions",frequency:"Annual",sharesOutstanding:100};
- p.history=E.blankHistory([year]);p.peers=[];p.rawRecords=[];p.mapping={};p.importMeta={source:"Blank manual-entry model",sourceFiles:[],importedAt:"",sourceNotes:["Values entered manually by the user; retain citations and supporting filings outside this browser application."]};
- project=normaliseProject(p);syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();rebuild();renderManualEntry();persist();showPage("data");
- toast("Blank company created. Add your company details and enter financials.");
-}
 function addPeriod(){
  showPage("data");$("#newManualPeriod").focus();
  toast("Add the reporting period in the manual-entry section.");
