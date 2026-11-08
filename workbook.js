@@ -21,7 +21,7 @@ const styles={
 function addSheet(wb,name,rows,widths){
  const ws=X.utils.aoa_to_sheet(rows);
  ws["!cols"]=(widths||[]).map(w=>({wch:w}));
- ws["!views"]=[{state:"frozen",ySplit:4,xSplit:1,topLeftCell:"B5",activePane:"bottomRight"}];
+ ws["!views"]=[{state:"frozen",ySplit:4,xSplit:1,topLeftCell:"B5",activePane:"bottomRight",showGridLines:false}];
  X.utils.book_append_sheet(wb,ws,name);return ws;
 }
 function title(ws,lastCol,titleText){ws["A1"]={v:titleText,t:"s",s:styles.title};ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:lastCol-1}}];ws["!rows"]=ws["!rows"]||[];ws["!rows"][0]={hpt:28};}
@@ -344,7 +344,7 @@ function exportWorkbook(project,forecast,valuation,ratios,options={}){
  for(let j=0;j<periods.length;j++){const r=4+n+j,C=col(j+2);formulaCell(checks,"C"+r,"="+q("Historical BS")+"!"+C+"10-"+q("Historical BS")+"!"+C+"16",0);formulaCell(checks,"D"+r,'=IF(ABS(C'+r+')<0.01,"PASS","REVIEW")',"PASS")}
  // Cover sheet: concise, linked and presentable.
  const coverRows=[["MODELFORGE | FINANCIAL ANALYSIS REPORT"],["Company",p.name],["Prepared by",preparedBy],["Industry",p.industry],["Valuation date",p.valuationDate],["Currency / unit",p.currency+" / "+p.unit],["Reporting frequency",p.frequency],["Forecast horizon",n+" years"],[""],["VALUATION SUMMARY"],["WACC",""],["Enterprise value",""],["Net debt",""],["Equity value",""],["Value per share",""],[""],["REPORT STRUCTURE"],["Historical statements","Historical IS / Historical BS / Historical CF"],["Forecast statements","Forecast IS / Forecast BS / Forecast CF"],["Free cash flow","FCF · historical FCF, forecast FCF and UFCF bridge"],["Valuation","DCF / Comparables / Sensitivity"],["Controls","Inputs / Checks / Scenario Calc"]];
- coverRows.push(["NSE symbol",project.security?.symbol||p.symbol||"—"],["Exchange",project.security?.exchange||"—"],["Data source",project.importMeta?.source||"Manual entry"],["Model status","Analyst review required · source verification is not automated"]);
+ coverRows.push(["NSE symbol",project.security?.symbol||p.symbol||"—"],["Exchange",project.security?.exchange||"—"],["Index universe / snapshot",project.security?.universeIndex?project.security.universeIndex+" · "+(project.security.asOf||"date not recorded"):"—"],["Data source",project.importMeta?.source||"Manual entry"],["Source file(s)",(project.importMeta?.sourceFiles||[]).join(", ")||"Not supplied"],["Imported on",project.importMeta?.importedAt||"Not recorded"],["Source verification","Not independently authenticated by ModelForge"],["Model status","Analyst review required · verify issuer, reporting basis, periods, units and source data"],["Exported on",new Date().toISOString()]);
  const cover=addSheet(wb,"Cover",coverRows,[31,58]);title(cover,2,"MODELFORGE | FINANCIAL ANALYSIS REPORT");
  formulaCell(cover,"B11","="+q("Inputs")+"!B41",valuation.wacc);formulaCell(cover,"B12","="+q("DCF")+"!B"+(terminalRow+3),valuation.enterpriseValue||0);formulaCell(cover,"B13","="+q("DCF")+"!B"+(terminalRow+4),valuation.netDebt);formulaCell(cover,"B14","="+q("DCF")+"!B"+(terminalRow+5),valuation.equityValue||0);formulaCell(cover,"B15","="+q("DCF")+"!B"+(terminalRow+7),valuation.perShare||0);
  [10,17].forEach(r=>setStyle(cover,"A"+r,styles.section));
