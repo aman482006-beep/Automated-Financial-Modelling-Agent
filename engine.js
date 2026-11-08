@@ -397,7 +397,129 @@ function validateHistory(h){
  add(true,"Currency and reporting unit","Project currency and unit are metadata. Confirm that every uploaded file uses the same currency and scale; the static app does not infer or convert source units.");
  return out;
 }
+function modelReadiness(h,frequency="Annual"){
+ const blockers=[];
+ if(!h||!Array.isArray(h.periods)||h.periods.length===0){
+  return {ready:false,blockers:["Import at least one annual reporting period before building a forecast."]};
+ }
+ const normalizedFrequency=String(frequency||"Annual").trim().toLowerCase();
+ if(!["annual","yearly","fy"].includes(normalizedFrequency)){
+  blockers.push("The current forecast engine requires annual historical periods. Aggregate quarterly data into a full financial year before forecasting.");
+ }
+ const quarterlyPeriods=h.periods.filter(period=>parseFinancialPeriod(period)?.kind==="quarter");
+ if(quarterlyPeriods.length){
+  blockers.push("Quarterly periods cannot be used as annual forecast starting points. Remove or aggregate: "+quarterlyPeriods.join(", ")+".");
+ }
+ const index=h.periods.length-1;
+ const required=[
+  ["Revenue","IS","revenue"],
+  ["Cash and cash equivalents","BS","cash"],
+  ["Accounts receivable","BS","ar"],
+  ["Inventory","BS","inventory"],
+  ["Other current assets","BS","otherCurrentAssets"],
+  ["Property, plant and equipment","BS","ppe"],
+  ["Accounts payable","BS","ap"],
+  ["Short-term debt","BS","shortDebt"],
+  ["Long-term debt / total borrowings","BS","longDebt"],
+  ["Other operating liabilities","BS","otherLiabilities"],
+  ["Shareholders' equity","BS","equity"]
+ ];
+ const missing=required.filter(([,group,key])=>{
+  const value=h[group]?.[key]?.[index];
+  return value===null||value===undefined||!Number.isFinite(Number(value));
+ }).map(([label])=>label);
+ if(missing.length)blockers.push("Latest period is missing required forecast inputs: "+missing.join(", ")+". Enter the reported value, including an explicit zero where zero is correct.");
+ const periodOrder=h.periods.every((period,i)=>i===0||periodSort(h.periods[i-1],period)<0);
+ if(!periodOrder)blockers.push("Reporting periods must be unique and in chronological order.");
+ return {ready:blockers.length===0,blockers};
+}
+
+function validateForecastAssumptions(a){
+ const errors=[];
+ if(!a||typeof a!=="object")return ["Forecast assumptions are missing."];
+ const ranges={
+  revenueGrowth:[-0.9,5],
+  grossMargin:[0,1.5],
+  employeePct:[0,1.5],
+  otherOpexPct:[0,1.5],
+  daPct:[0,1.5],
+  taxRate:[0,1],
+  capexPct:[0,2],
+  arDays:[0,3650],
+  inventoryDays:[0,3650],
+  apDays:[0,3650],
+  otherCurrentAssetsPct:[0,2],
+  otherLiabilitiesPct:[0,2],
+  annualDebtRepayment:[0,1e12],
+  interestRate:[0,1],
+  dividendPayout:[0,1.5]
+ };
+ for(const [key,[minimum,maximum]] of Object.entries(ranges)){
+  const value=a[key];
+  if(typeof value!=="number"||!Number.isFinite(value)||value<minimum||value>maximum){
+   errors.push(key+" must be a finite value between "+minimum+" and "+maximum+".");
+  }
+ }
+ return errors;
+}
+
+function validateDCFInputs(d,a,h){
+ const errors=[];
+ if(!d||typeof d!=="object")return ["DCF assumptions are missing."];
+ const finiteRange=(key,label,min,max)=>{
+  const value=d[key];
+  if(typeof value!=="number"||!Number.isFinite(value)||value<min||value>max){
+   errors.push(label+" must be a finite value between "+min+" and "+max+".");
+  }
+ };
+ finiteRange("riskFreeRate","Risk-free rate",0,1);
+ finiteRange("equityRiskPremium","Equity risk premium",0,1);
+ finiteRange("beta","Levered beta",0,10);
+ finiteRange("costOfDebt","Pre-tax cost of debt",0,1);
+ finiteRange("equityMarketValue","Market value of equity",0,1e15);
+ finiteRange("debtMarketValue","Market value of debt",0,1e15);
+ if(Number.isFinite(d.equityMarketValue)&&Number.isFinite(d.debtMarketValue)&&d.equityMarketValue+d.debtMarketValue<=0){
+  errors.push("Market value of equity plus debt must be greater than zero to calculate WACC.");
+ }
+ if(!a||typeof a.taxRate!=="number"||!Number.isFinite(a.taxRate)||a.taxRate<0||a.taxRate>1){
+  errors.push("Tax rate must be between 0% and 100%.");
+ }
+ if(typeof d.sharesOutstanding!=="number"||!Number.isFinite(d.sharesOutstanding)||d.sharesOutstanding<=0){
+  errors.push("Shares outstanding must be greater than zero.");
+ }
+ if(!["growth","multiple"].includes(d.terminalMethod)){
+  errors.push("Choose a supported terminal-value method.");
+ }
+ if(d.terminalMethod==="growth"){
+  if(typeof d.perpetualGrowth!=="number"||!Number.isFinite(d.perpetualGrowth)||d.perpetualGrowth< -0.05||d.perpetualGrowth>0.20){
+   errors.push("Perpetual growth must be between -5% and 20%.");
+  }
+ }
+ if(d.terminalMethod==="multiple"){
+  if(typeof d.exitMultiple!=="number"||!Number.isFinite(d.exitMultiple)||d.exitMultiple<=0||d.exitMultiple>100){
+   errors.push("Exit EBITDA multiple must be greater than zero and no more than 100x.");
+  }
+ }
+ if(h){
+  const readiness=modelReadiness(h,"Annual");
+  if(!readiness.ready)errors.push(...readiness.blockers);
+ }
+ if(errors.length===0){
+  const w=calculateWACC(d,a.taxRate).wacc;
+  if(!Number.isFinite(w)||w<=0||w>=2)errors.push("Calculated WACC must be greater than 0% and below 200%.");
+  else if(d.terminalMethod==="growth"&&w<=d.perpetualGrowth){
+   errors.push("WACC must be greater than the perpetual growth rate. Increase WACC or reduce terminal growth.");
+  }
+ }
+ return errors;
+}
+
 function buildForecast(h,a,years){
+ const readiness=modelReadiness(h,"Annual");
+ if(!readiness.ready)throw new Error(readiness.blockers.join(" "));
+ const assumptionErrors=validateForecastAssumptions(a);
+ if(assumptionErrors.length)throw new Error(assumptionErrors.join(" "));
+ if(!Number.isInteger(years)||years<1||years>10)throw new Error("Forecast horizon must be an integer from 1 to 10 years.");
  const n=h.periods.length,last=n-1,period=h.periods[last]||"2025";
  const H=(g,k)=>num(derivedValue(h,g,k,last));
  let revenue=H("IS","revenue"),cash=H("BS","cash"),ar=H("BS","ar"),inventory=H("BS","inventory"),oca=H("BS","otherCurrentAssets"),
@@ -434,19 +556,28 @@ function calculateWACC(d,taxRate){
  return {costEquity,equityWeight,debtWeight,wacc:equityWeight*costEquity+debtWeight*d.costOfDebt*(1-taxRate)};
 }
 function calculateDCF(forecast,h,d,assumptions){
+ const errors=validateDCFInputs(d,assumptions,h);
+ if(!Array.isArray(forecast)||forecast.length===0)errors.push("A valid forecast is required before calculating DCF.");
+ if(errors.length){
+  return {valid:false,errors,wacc:null,costEquity:null,equityWeight:null,debtWeight:null,flows:[],pvForecast:null,terminalValue:null,pvTerminal:null,enterpriseValue:null,netDebt:null,equityValue:null,perShare:null};
+ }
  const w=calculateWACC(d,assumptions.taxRate),tax=assumptions.taxRate;
- const flows=forecast.map((x,i)=>({year:x.year,ebit:x.ebit,nopat:x.ebit*(1-tax),daAddback:-x.da,capex:x.capex,changeNWC:x.changeNWC,ufcf:x.ebit*(1-tax)-x.da-x.capex-x.changeNWC,discountFactor:w.wacc?1/Math.pow(1+w.wacc,i+1):null}));
- const pvForecast=flows.reduce((s,x)=>s+(x.discountFactor===null?0:x.ufcf*x.discountFactor),0);
- const tail=flows[flows.length-1]||{ufcf:0},lastForecast=forecast[forecast.length-1]||{ebitda:0};
- let terminalValue=null;
- if(d.terminalMethod==="growth"&&w.wacc!==null&&w.wacc>d.perpetualGrowth)terminalValue=tail.ufcf*(1+d.perpetualGrowth)/(w.wacc-d.perpetualGrowth);
- if(d.terminalMethod==="multiple")terminalValue=lastForecast.ebitda*d.exitMultiple;
- const pvTerminal=terminalValue===null||!flows.length||!w.wacc?null:terminalValue/Math.pow(1+w.wacc,flows.length);
- const enterpriseValue=pvTerminal===null?null:pvForecast+pvTerminal;
+ const flows=forecast.map((x,i)=>({
+  year:x.year,ebit:x.ebit,nopat:x.ebit*(1-tax),daAddback:-x.da,capex:x.capex,changeNWC:x.changeNWC,
+  ufcf:x.ebit*(1-tax)-x.da-x.capex-x.changeNWC,
+  discountFactor:1/Math.pow(1+w.wacc,i+1)
+ }));
+ const pvForecast=flows.reduce((sum,x)=>sum+x.ufcf*x.discountFactor,0);
+ const tail=flows[flows.length-1],lastForecast=forecast[forecast.length-1];
+ const terminalValue=d.terminalMethod==="growth"
+  ?tail.ufcf*(1+d.perpetualGrowth)/(w.wacc-d.perpetualGrowth)
+  :lastForecast.ebitda*d.exitMultiple;
+ const pvTerminal=terminalValue/Math.pow(1+w.wacc,flows.length);
+ const enterpriseValue=pvForecast+pvTerminal;
  const netDebt=lastValue(h,"BS","shortDebt")+lastValue(h,"BS","longDebt")-lastValue(h,"BS","cash");
- const equityValue=enterpriseValue===null?null:enterpriseValue-netDebt;
- const perShare=equityValue===null||!d.sharesOutstanding?null:equityValue/d.sharesOutstanding;
- return {wacc:w.wacc,costEquity:w.costEquity,equityWeight:w.equityWeight,debtWeight:w.debtWeight,flows,pvForecast,terminalValue,pvTerminal,enterpriseValue,netDebt,equityValue,perShare};
+ const equityValue=enterpriseValue-netDebt;
+ const perShare=equityValue/d.sharesOutstanding;
+ return {valid:true,errors:[],wacc:w.wacc,costEquity:w.costEquity,equityWeight:w.equityWeight,debtWeight:w.debtWeight,flows,pvForecast,terminalValue,pvTerminal,enterpriseValue,netDebt,equityValue,perShare};
 }
 function peerMultiples(peer){
  const ratio=(a,b)=>a>0&&b>0?a/b:null;
@@ -464,5 +595,5 @@ function operatingScenario(h,a,years,dcfInputs,terminalGrowth,terminalMultiple,m
  return calculateDCF(f,h,d,a).enterpriseValue;
 }
 function formatNumber(value,d=1){return Number.isFinite(value)?value.toLocaleString("en-IN",{minimumFractionDigits:d,maximumFractionDigits:d}):"—";}
-return {ITEMS,ALIASES,DEFAULT_ASSUMPTIONS,DEFAULT_DCF,DEFAULT_PEERS,SAMPLE,clone,blankHistory,defaultProject,normaliseLabel,mapLabel,parseNumber,recordsFromRows,parseScreenerDataSheet,num,historyFromRecords,historicalRatios,validateHistory,buildForecast,calculateWACC,calculateDCF,peerMultiples,peerStatistics,operatingScenario,formatNumber};
+return {ITEMS,ALIASES,DEFAULT_ASSUMPTIONS,DEFAULT_DCF,DEFAULT_PEERS,SAMPLE,clone,blankHistory,defaultProject,normaliseLabel,mapLabel,parseNumber,recordsFromRows,parseScreenerDataSheet,num,historyFromRecords,historicalRatios,validateHistory,parseFinancialPeriod,periodSort,modelReadiness,validateForecastAssumptions,validateDCFInputs,buildForecast,calculateWACC,calculateDCF,peerMultiples,peerStatistics,operatingScenario,formatNumber};
 });
