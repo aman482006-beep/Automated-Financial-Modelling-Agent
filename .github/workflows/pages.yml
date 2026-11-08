@@ -52,6 +52,7 @@ jobs:
           node --check engine.js
           node --check workbook.js
           node --check app-main.js
+          node --check universe.js
           node --check tests/browser.test.cjs
           node --check tests/excel-recalc.test.cjs
 
@@ -70,7 +71,7 @@ jobs:
       - name: Assemble static site with local vendor libraries and licence notices
         run: |
           mkdir -p _site/vendor _site/sample-data
-          cp index.html styles.css engine.js workbook.js app-main.js _site/
+          cp index.html styles.css engine.js workbook.js app-main.js universe.js _site/
           cp sample-data/aster_industries.csv _site/sample-data/aster_industries.csv
           cp LICENSE README.md THIRD_PARTY_NOTICES.md _site/
           cp node_modules/xlsx-js-style/dist/xlsx.bundle.js _site/vendor/xlsx.bundle.js
