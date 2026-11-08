@@ -123,10 +123,12 @@ test("forecast, DCF and sensitivity tabs work in Chromium", async () => {
   }
 });
 
-test("blank projects are blocked from valuation and display missing required inputs", async () => {
+test("existing-company models are blocked from valuation until verified financials are loaded", async () => {
   const { page, pageErrors } = await openPage();
   try {
-    await page.locator("#startBlank").click();
+    await page.locator("#chooseExistingCompany").click();
+    await page.locator("#universeSearch").fill("RELIANCE");
+    await page.locator('[data-select-universe="RELIANCE"]').click();
     await page.locator('#nav [data-page="overview"]').click();
     const readiness = await page.locator("#modelReadiness").innerText();
     assert.match(readiness, /Model not ready for valuation/);
