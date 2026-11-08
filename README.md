@@ -11,6 +11,7 @@ https://aman482006-beep.github.io/Automated-Financial-Modelling-Agent/
 ## What it actually does
 
 - **Financial data intake:** CSV and Excel import, multiple worksheets, wide/long layouts, manual entry, editable field mapping and source metadata.
+- **Indian company picker:** bundled NSE Nifty 100 / Nifty 200 issuer directory (200 unique securities, 100 Nifty 100 members; snapshot checked 6 Nov 2026), with searchable names, NSE symbols and sectors. Selecting a company creates a clean, empty model; it never copies the synthetic Aster figures.
 - **Screener.in workbook import:** detects a Data Sheet and maps supported annual financial items. Missing classifications remain missing; the importer does not invent zero values for undisclosed accounts payable or short-term debt.
 - **Historical review:** growth, margins, return ratios, liquidity, leverage, working capital and reported free cash flow where the required source fields exist.
 - **Data validation:** statement completeness, balance-sheet reconciliation, cash-flow bridges, statement subtotals and reporting-period order.
@@ -42,7 +43,7 @@ python -m http.server 8000
 
 Open http://localhost:8000.
 
-The static front end uses local copies of its Excel and ZIP libraries when available. No Gemini, OpenAI, broker or market-data credential is needed. No live financial data provider is connected: you supply the financial statements and peer data.
+The static front end uses local copies of its Excel and ZIP libraries when available. No Gemini, OpenAI, broker or market-data credential is needed. No live financial data provider is connected: you supply the financial statements and peer data. The bundled NSE directory is issuer metadata only; it does not contain statements, current prices or market-cap values.
 
 ## Test and verify
 
@@ -115,6 +116,7 @@ The Pages version works without any of those backend dependencies or credentials
 - styles.css — responsive UI and local system-font styling
 - engine.js — financial calculations, ingestion, readiness and validation rules
 - app-main.js — browser state, imports, editing, source trace and exports
+- universe.js — dated NSE Nifty 100 / Nifty 200 issuer directory (metadata only)
 - workbook.js — formula-linked Excel workbook generator
 - sample-data/aster_industries.csv — synthetic sample data
 - docs/formulas.md — calculation reference and caveats
@@ -122,6 +124,7 @@ The Pages version works without any of those backend dependencies or credentials
 - tests/engine.test.cjs — financial-engine tests
 - tests/workbook.test.cjs — workbook structure and formula tests
 - tests/browser.test.cjs — Playwright end-to-end tests
+- tests/universe.test.cjs — NSE universe count, uniqueness and data-scope checks
 - tests/excel-recalc.test.cjs — LibreOffice formula recalculation test
 - .github/workflows/pages.yml — CI checks and GitHub Pages deployment
 
