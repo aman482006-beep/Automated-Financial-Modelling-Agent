@@ -1,0 +1,32 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Node and browser build output
+node_modules/
+dist/
+out/
+build/
+coverage/
+playwright-report/
+test-results/
+
+# Python environment and cache
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+
+# Local databases and logs
+*.sqlite
+*.sqlite3
+*.db
+*.log
+
+# OS and editor metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
