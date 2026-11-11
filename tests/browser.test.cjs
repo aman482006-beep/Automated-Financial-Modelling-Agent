@@ -289,3 +289,35 @@ test("uploaded workbooks use the patched SheetJS reader separately from the lega
     await page.close();
   }
 });
+
+test("malicious project backup values are normalised and cannot inject HTML attributes", async () => {
+  const { page, pageErrors } = await openPage();
+  try {
+    const payload = await page.evaluate(() => {
+      const project = JSON.parse(JSON.stringify(window.ModelForge.getProject()));
+      project.history.IS.revenue[0] = '" autofocus onfocus="window.__modelForgeInjected=true';
+      project.peers[0].revenue = '" autofocus onfocus="window.__modelForgeInjected=true';
+      project.rawRecords = [null, { period: "2025", label: "Revenue", value: 100 }];
+      return JSON.stringify(project);
+    });
+    await page.locator("#loadProjectFile").setInputFiles({
+      name: "hostile-project.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(payload, "utf8"),
+    });
+    await page.waitForFunction(() => document.querySelector("#toast")?.textContent.includes("Project loaded."));
+    const result = await page.evaluate(() => ({
+      injected: window.__modelForgeInjected === true,
+      historyValue: window.ModelForge.getProject().history.IS.revenue[0],
+      peerValue: window.ModelForge.getProject().peers[0].revenue,
+      injectedElements: document.querySelectorAll("#historyEditor [onfocus], #peerTable [onfocus], #historyEditor img, #peerTable img").length,
+    }));
+    assert.equal(result.injected, false);
+    assert.equal(result.historyValue, null);
+    assert.equal(result.peerValue, null);
+    assert.equal(result.injectedElements, 0);
+    assert.deepEqual(pageErrors, []);
+  } finally {
+    await page.close();
+  }
+});
