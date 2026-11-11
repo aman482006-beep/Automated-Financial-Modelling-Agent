@@ -23,6 +23,9 @@ let baseUrl;
 
 function resolveRequest(pathname) {
   if (pathname === "/") return path.join(ROOT, "index.html");
+  if (pathname === "/vendor/xlsx.full.min.js") {
+    return path.join(ROOT, "vendor", "xlsx.full.min.js");
+  }
   if (pathname === "/vendor/xlsx.bundle.js") {
     return path.join(ROOT, "node_modules", "xlsx-js-style", "dist", "xlsx.bundle.js");
   }
@@ -262,6 +265,23 @@ test("CSV import preserves quoted multiline fields and does not split a single r
     const project = await page.evaluate(() => window.ModelForge.getProject());
     assert.equal(project.rawRecords[0].label, "Revenue, audited\r\ncontinuation");
     assert.equal(project.rawRecords[0].value, 100);
+    assert.deepEqual(pageErrors, []);
+  } finally {
+    await page.close();
+  }
+});
+
+test("uploaded workbooks use the patched SheetJS reader separately from the legacy styled export library", async () => {
+  const { page, pageErrors } = await openPage();
+  try {
+    const versions = await page.evaluate(() => ({
+      reader: window.ModelForgeXLSXReader?.version,
+      writerAvailable: Boolean(window.ModelForgeXLSXWriter?.utils?.book_new && window.ModelForgeXLSXWriter?.writeFile),
+      readerAndWriterAreSeparate: window.ModelForgeXLSXReader !== window.ModelForgeXLSXWriter,
+    }));
+    assert.equal(versions.reader, "0.20.3");
+    assert.equal(versions.writerAvailable, true);
+    assert.equal(versions.readerAndWriterAreSeparate, true);
     assert.deepEqual(pageErrors, []);
   } finally {
     await page.close();
