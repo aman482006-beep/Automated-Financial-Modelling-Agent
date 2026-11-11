@@ -451,7 +451,7 @@ async function loadProjectFile(file){
    if(file.size>MAX_PROJECT_FILE_BYTES)throw new Error("Project backups must be 10 MB or smaller.");
    if(!String(file.name||"").toLowerCase().endsWith(".json"))throw new Error("Choose a ModelForge .json project backup.");
    const p=JSON.parse(await file.text());
-   if(!p?.profile||!p?.history||!Array.isArray(p.history.periods))throw new Error("Not a valid ModelForge project file.");
+   if(!p?.profile||typeof p.profile!=="object"||Array.isArray(p.profile)||!p?.history||typeof p.history!=="object"||!Array.isArray(p.history.periods))throw new Error("Not a valid ModelForge project file.");
    if(p.history.periods.length>100)throw new Error("Project backups may contain no more than 100 historical periods.");
    if(Array.isArray(p.rawRecords)&&p.rawRecords.length>MAX_IMPORT_RECORDS)throw new Error("Project backup contains too many imported financial records.");
    project=normaliseProject(p);syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();persist();toast("Project loaded.");
