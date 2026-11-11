@@ -16,6 +16,10 @@ Use GitHub's **Report a vulnerability** flow (private vulnerability reporting / 
 
 Please allow reasonable time for investigation and a fix before public disclosure. Do not access, modify or retain another person's data while testing.
 
+## Spreadsheet parser boundary
+
+User-uploaded XLSX / XLS files are parsed with the pinned SheetJS Community Edition 0.20.3 browser reader from the official CDN; the tarball is verified against a recorded SHA-512 digest before it is used in tests or deployments. The separate legacy xlsx-js-style bundle exists only for styled workbook generation. ModelForge exposes a restricted writer API to the application and does not expose that bundle's `read` API for uploaded files. Do not pass untrusted workbook bytes to the styled exporter.
+
 ## Security expectations
 
 - Never commit real `.env` files, API keys, tokens, passwords or private financial workbooks.
