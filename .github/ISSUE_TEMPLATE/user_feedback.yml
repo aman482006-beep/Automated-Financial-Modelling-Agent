@@ -1,7 +1,6 @@
 name: User feedback
 description: Share feedback from a ModelForge test session
 title: "[Feedback]: "
-labels: ["feedback", "triage"]
 body:
   - type: markdown
     attributes:
