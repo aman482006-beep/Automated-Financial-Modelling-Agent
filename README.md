@@ -128,6 +128,12 @@ The Pages version works without any of those backend dependencies or credentials
 - tests/excel-recalc.test.cjs — LibreOffice formula recalculation test
 - .github/workflows/pages.yml — CI checks and GitHub Pages deployment
 
+## Contributing and security
+
+Contributions should preserve financial correctness, transparent assumptions and privacy. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Please report vulnerabilities privately using the process in [SECURITY.md](SECURITY.md), not in a public issue.
+
+Dependabot checks npm and GitHub Actions dependencies weekly. GitHub Actions runs CodeQL analysis and reviews dependency changes in pull requests. These checks reduce risk but do not guarantee that the application is vulnerability-free.
+
 ## Licence
 
 Original ModelForge code is licensed under Apache-2.0; see [LICENSE](LICENSE). Third-party libraries retain their own licences; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
