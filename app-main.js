@@ -2,6 +2,7 @@
 "use strict";
 const E=window.ModelEngine,$=s=>document.querySelector(s),$$=s=>Array.from(document.querySelectorAll(s));
 const KEY="modelforge.project.v2",symbols={INR:"₹",USD:"$",EUR:"€",GBP:"£",SGD:"S$"};
+const MAX_IMPORT_FILES=10,MAX_IMPORT_FILE_BYTES=20*1024*1024,MAX_TOTAL_IMPORT_BYTES=40*1024*1024,MAX_PROJECT_FILE_BYTES=10*1024*1024,MAX_IMPORT_RECORDS=250000,MAX_WORKSHEETS=30,MAX_WORKSHEET_ROWS=10000;
 let project=normaliseProject(loadSaved()||E.defaultProject()),forecast=[],ratios=[],valuation,modelStatus,noticeTimer,universeSize=100;
 const EMPTY_VALUATION={valid:false,errors:["Complete the required historical inputs before calculating valuation."],wacc:null,costEquity:null,equityWeight:null,debtWeight:null,flows:[],pvForecast:null,terminalValue:null,pvTerminal:null,enterpriseValue:null,netDebt:null,equityValue:null,perShare:null};
 
@@ -325,12 +326,13 @@ async function importStatements(files){
    const bytes=await fileArrayBuffer(file);
    let workbook;
    try{
-    workbook=XLSXLib.read(new Uint8Array(bytes),{type:"array",cellDates:true});
+    workbook=XLSXLib.read(new Uint8Array(bytes),{type:"array",cellDates:true,sheetRows:MAX_WORKSHEET_ROWS});
    }catch(firstError){
-    try{workbook=XLSXLib.read(bytes,{cellDates:true});}
+    try{workbook=XLSXLib.read(bytes,{cellDates:true,sheetRows:MAX_WORKSHEET_ROWS});}
     catch(secondError){throw new Error("Could not open "+file.name+": "+(secondError?.message||firstError?.message||"invalid Excel workbook"));}
    }
    if(!workbook?.SheetNames?.length)throw new Error(file.name+" contains no readable worksheets.");
+    if(workbook.SheetNames.length>MAX_WORKSHEETS)throw new Error(file.name+" contains more than "+MAX_WORKSHEETS+" worksheets. Remove unused sheets and retry.");
    const orderedSheets=[...workbook.SheetNames].sort((a,b)=>{
     const aa=E.normaliseLabel(a)==="datasheet"?0:1,bb=E.normaliseLabel(b)==="datasheet"?0:1;return aa-bb;
    });
@@ -440,7 +442,18 @@ function generateExcelReport(){
  }catch(error){toast("Export failed: "+(error?.message||String(error)));}
 }
 function saveProjectFile(){const blob=new Blob([JSON.stringify(project,null,2)],{type:"application/json"});downloadBlob((project.profile.name||"ModelForge").replace(/[^a-z0-9]+/gi,"_")+"_project.json",blob);toast("Project backup downloaded.")}
-function loadProjectFile(file){const reader=new FileReader();reader.onload=()=>{try{const p=JSON.parse(reader.result);if(!p.profile||!p.history)throw new Error("Not a ModelForge project file.");project=normaliseProject(p);syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();persist();toast("Project loaded.")}catch(e){toast("Could not load project: "+e.message)}};reader.readAsText(file)}
+async function loadProjectFile(file){
+  try{
+   if(!file)return;
+   if(file.size>MAX_PROJECT_FILE_BYTES)throw new Error("Project backups must be 10 MB or smaller.");
+   if(!/\\.json$/i.test(file.name))throw new Error("Choose a ModelForge .json project backup.");
+   const p=JSON.parse(await file.text());
+   if(!p?.profile||!p?.history||!Array.isArray(p.history.periods))throw new Error("Not a valid ModelForge project file.");
+   if(p.history.periods.length>100)throw new Error("Project backups may contain no more than 100 historical periods.");
+   if(Array.isArray(p.rawRecords)&&p.rawRecords.length>MAX_IMPORT_RECORDS)throw new Error("Project backup contains too many imported financial records.");
+   project=normaliseProject(p);syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();persist();toast("Project loaded.");
+  }catch(e){toast("Could not load project: "+(e?.message||String(e)));}
+ }
 
 
 function comparePeriods(a,b){
