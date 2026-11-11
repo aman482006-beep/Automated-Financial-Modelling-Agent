@@ -298,6 +298,7 @@ test("malicious project backup values are normalised and cannot inject HTML attr
       project.history.IS.revenue[0] = '" autofocus onfocus="window.__modelForgeInjected=true';
       project.peers[0].revenue = '" autofocus onfocus="window.__modelForgeInjected=true';
       project.dcf.exitMultiple = '" autofocus onfocus="window.__modelForgeInjected=true';
+      project.dcf.terminalMethod = "multiple";
       project.assumptions.revenueGrowth = '" autofocus onfocus="window.__modelForgeInjected=true';
       project.rawRecords = [null, { period: "2025", label: "Revenue", value: 100 }];
       return JSON.stringify(project);
@@ -314,6 +315,7 @@ test("malicious project backup values are normalised and cannot inject HTML attr
       peerValue: window.ModelForge.getProject().peers[0].revenue,
       dcfValue: window.ModelForge.getProject().dcf.exitMultiple,
       assumptionValue: window.ModelForge.getProject().assumptions.revenueGrowth,
+      terminalInputValue: document.querySelector("#terminalValueInput")?.value,
       injectedElements: document.querySelectorAll("#historyEditor [onfocus], #peerTable [onfocus], #terminalInputs [onfocus], #historyEditor img, #peerTable img, #terminalInputs img").length,
     }));
     assert.equal(result.injected, false);
@@ -321,6 +323,7 @@ test("malicious project backup values are normalised and cannot inject HTML attr
     assert.equal(result.peerValue, null);
     assert.equal(result.dcfValue, 9);
     assert.equal(result.assumptionValue, 0.1);
+    assert.equal(result.terminalInputValue, "9");
     assert.equal(result.injectedElements, 0);
     assert.deepEqual(pageErrors, []);
   } finally {
