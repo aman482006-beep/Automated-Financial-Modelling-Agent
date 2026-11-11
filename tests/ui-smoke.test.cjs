@@ -57,3 +57,20 @@ test("sensitivity tables pass an array of column headers to the shared table ren
  assert.doesNotMatch(sensitivity,/table\(method==="growth"\?/);
  assert.doesNotMatch(sensitivity,/table\("Revenue growth/);
 });
+
+
+test("share metadata and canonical application URL are present",()=>{
+ assert.ok(html.includes('<meta name="description"'));
+ assert.ok(html.includes('property="og:title"'));
+ assert.ok(html.includes('property="og:description"'));
+ assert.ok(html.includes('name="twitter:card"'));
+ assert.ok(html.includes('rel="canonical"'));
+});
+
+test("keyboard users can skip navigation and focus the main workspace",()=>{
+ assert.ok(html.includes('class="skip-link" href="#main-content"'));
+ assert.ok(html.includes('<main class="main" id="main-content" tabindex="-1">'));
+ assert.ok(css.includes(".skip-link:focus"));
+ assert.ok(css.includes("a:focus-visible"));
+ assert.ok(css.includes("textarea:focus-visible"));
+});
