@@ -316,3 +316,18 @@ body[data-theme="warm"] .start-panel{background:linear-gradient(112deg,#fffdf8,#
  .universe-row{align-items:flex-start}
  .universe-footer{flex-direction:column}
 }
+
+
+/* Keyboard access */
+.skip-link{
+ position:fixed;left:14px;top:14px;z-index:1000;
+ transform:translateY(-180%);padding:10px 14px;
+ border:2px solid var(--blue);border-radius:6px;
+ background:var(--surface);color:var(--ink);
+ font:700 12px Inter,ui-sans-serif,system-ui,sans-serif;
+ text-decoration:none;box-shadow:0 8px 24px rgba(0,0,0,.16)
+}
+.skip-link:focus,.skip-link:focus-visible{transform:translateY(0)}
+a:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
+ outline:2px solid var(--blue);outline-offset:3px
+}

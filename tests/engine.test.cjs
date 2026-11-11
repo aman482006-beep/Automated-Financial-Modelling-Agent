@@ -367,3 +367,22 @@ test("CSV parser rejects malformed quotes and configured resource-limit violatio
   assert.throws(() => E.parseCsv("A,B,C\n1,2,3", { maxColumns: 2 }), /more than 2 columns/i);
   assert.throws(() => E.parseCsv("A\n"+"x".repeat(20), { maxFieldLength: 10 }), /field longer/i);
 });
+
+
+test("default Aster demo matches published historical and DCF sanity values", () => {
+  const project = E.defaultProject();
+  const latest = E.historicalRatios(project.history).at(-1);
+  assert.ok(Math.abs(latest.revenueGrowth - (1996 / 1782 - 1)) < 1e-12);
+  assert.ok(Math.abs(latest.grossMargin - (958 / 1996)) < 1e-12);
+  assert.ok(Math.abs(latest.ebitdaMargin - (448 / 1996)) < 1e-12);
+  assert.equal(latest.freeCashFlow, 162);
+
+  const forecast = E.buildForecast(project.history, project.assumptions, project.forecastYears);
+  const valuation = E.calculateDCF(forecast, project.history, project.dcf, project.assumptions);
+  assert.equal(valuation.valid, true);
+  assert.ok(Math.abs(valuation.wacc - 0.11361) < 1e-12);
+  assert.ok(Math.abs(forecast.at(-1).revenue - 3214.57796) < 1e-8);
+  assert.ok(Math.abs(forecast.at(-1).ebitda - 720.06546304) < 1e-8);
+  assert.ok(Math.abs(valuation.enterpriseValue - 3409.638687924597) < 1e-7);
+  assert.ok(Math.abs(valuation.perShare - 33.49638687924597) < 1e-8);
+});
