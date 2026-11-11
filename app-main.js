@@ -323,8 +323,8 @@ async function importStatements(files){
    records=records.concat(E.recordsFromRows(parseCsv(await file.text()),"",file.name));
    filesLoaded++;
   }else if(["xlsx","xls"].includes(ext)){
-   const XLSXLib=window.XLSX;
-   if(!XLSXLib?.utils?.sheet_to_json)throw new Error("The Excel reader did not load. Refresh the page and retry; if the CDN is blocked, try another network or upload CSV.");
+   const XLSXLib=window.ModelForgeXLSXReader;
+   if(!XLSXLib?.utils?.sheet_to_json)throw new Error("The patched Excel reader did not load. Refresh the page or use CSV import; do not retry this workbook with the legacy export library.");
    const bytes=await fileArrayBuffer(file);
    let workbook;
    try{
