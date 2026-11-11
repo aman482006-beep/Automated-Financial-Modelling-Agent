@@ -233,13 +233,20 @@
  (async()=>{
   try{
    await loadOneOf([
+    "./vendor/xlsx.full.min.js",
+    "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"
+   ],()=>!!window.XLSX?.utils?.sheet_to_json&&window.XLSX?.version==="0.20.3","Secure Excel reader");
+   window.ModelForgeXLSXReader=window.XLSX;
+  }catch(error){window.ModelForgeXlsxLoadError=error.message;}
+  try{
+   window.XLSX=undefined;
+   await loadOneOf([
     "./vendor/xlsx.bundle.js",
     "https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js",
-    "https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js",
-    "https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js",
-    "https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.min.js"
-   ],()=>!!window.XLSX?.utils?.sheet_to_json,"Excel reader");
-  }catch(error){window.ModelForgeXlsxLoadError=error.message;}
+    "https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"
+   ],()=>!!window.XLSX?.utils?.book_new&&typeof window.XLSX?.writeFile==="function","Styled Excel export library");
+   window.ModelForgeXLSXWriter=window.XLSX;
+  }catch(error){window.ModelForgeXlsxStyleLoadError=error.message;}
   try{
    await loadOneOf([
     "./vendor/jszip.min.js",
@@ -251,9 +258,12 @@
   await loadScript("./workbook.js");
   await loadScript("./universe.js");
   await loadScript("./app-main.js");
-  if(window.ModelForgeXlsxLoadError){
+  if(window.ModelForgeXlsxLoadError||window.ModelForgeXlsxStyleLoadError){
    const status=document.querySelector("#importStatus");
-   if(status)status.textContent="Excel reader could not be loaded. CSV import and manual entry remain available; check your network or browser content blockers.";
+   if(status)status.textContent=[
+    window.ModelForgeXlsxLoadError?"Secure Excel reader unavailable; CSV import and manual entry remain available.":null,
+    window.ModelForgeXlsxStyleLoadError?"Styled Excel export library unavailable; refresh before exporting.":null
+   ].filter(Boolean).join(" ");
   }
  })().catch(error=>{console.error("ModelForge startup failed:",error);document.body.insertAdjacentHTML("beforeend",'<div style="position:fixed;inset:auto 12px 82px 12px;padding:12px;background:#fee2e2;color:#991b1b;z-index:9999;border-radius:6px">The modelling workspace could not start: '+String(error.message||error).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))+'</div>');});
 })();
