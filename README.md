@@ -132,7 +132,7 @@ The Pages version works without any of those backend dependencies or credentials
 
 Contributions should preserve financial correctness, transparent assumptions and privacy. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Please report vulnerabilities privately using the process in [SECURITY.md](SECURITY.md), not in a public issue.
 
-Dependabot checks npm and GitHub Actions dependencies weekly. GitHub Actions runs CodeQL analysis and reviews dependency changes in pull requests. These checks reduce risk but do not guarantee that the application is vulnerability-free.
+Dependabot checks npm and GitHub Actions dependencies weekly. GitHub Actions runs CodeQL analysis on pushes, pull requests and a weekly schedule. These checks reduce risk but do not guarantee that the application is vulnerability-free.
 
 ## Licence
 
