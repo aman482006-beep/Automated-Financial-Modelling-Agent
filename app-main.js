@@ -165,7 +165,7 @@ function renderValidation(){
 }
 function renderHistoryEditor(){
  const g=$("#historyStatement").value,h=project.history,items=E.ITEMS[g],years=h.periods;
- $("#historyEditor").innerHTML="<thead><tr><th>Line item</th>"+years.map(y=>"<th>"+esc(y)+"</th>").join("")+"</tr></thead><tbody>"+items.map(([k,label])=>"<tr><td>"+esc(label)+"</td>"+years.map((y,i)=>'<td><input type="number" step="any" data-hist-group="'+g+'" data-hist-key="'+k+'" data-hist-index="'+i+'" value="'+esc(h[g][k][i]===null?"":h[g][k][i])+'"></td>').join("")+"</tr>").join("")+"</tbody>";
+ $("#historyEditor").innerHTML="<thead><tr><th>Line item</th>"+years.map(y=>"<th>"+esc(y)+"</th>").join("")+"</tr></thead><tbody>"+items.map(([k,label])=>"<tr><td>"+esc(label)+"</td>"+years.map((y,i)=>'<td><input type="number" step="any" data-hist-group="'+esc(g)+'" data-hist-key="'+esc(k)+'" data-hist-index="'+i+'" value="'+esc(h[g][k][i]===null?"":h[g][k][i])+'"></td>').join("")+"</tr>").join("")+"</tbody>";
 }
 function renderHistory(){
  const r=ratios,h=project.history,first=r[0]||{},last=r.at(-1)||{},cagr=r.length>1&&n(h.IS.revenue[0])>0?Math.pow(n(h.IS.revenue.at(-1))/n(h.IS.revenue[0]),1/(r.length-1))-1:null;
