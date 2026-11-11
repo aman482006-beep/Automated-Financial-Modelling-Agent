@@ -80,7 +80,7 @@ function parseCsv(text,options={}){
  const maxColumns=Number.isInteger(options.maxColumns)?options.maxColumns:1000;
  const maxFieldLength=Number.isInteger(options.maxFieldLength)?options.maxFieldLength:1000000;
  if(text.length>20*1024*1024)throw new Error("CSV exceeds the 20 MB text limit.");
- const source=text.replace(/^\\uFEFF/,""),rows=[];
+ const source=text.charCodeAt(0)===0xFEFF?text.slice(1):text,rows=[];
  let row=[],field="",quoted=false;
  const pushField=()=>{
   if(field.length>maxFieldLength)throw new Error("CSV contains a field longer than the supported limit.");
@@ -104,9 +104,9 @@ function parseCsv(text,options={}){
    quoted=true;
   }else if(ch===","){
    pushField();
-  }else if(ch==="\\n"||ch==="\\r"){
+  }else if(ch==="\n"||ch==="\r"){
    pushRow();
-   if(ch==="\\r"&&source[i+1]==="\\n")i++;
+   if(ch==="\r"&&source[i+1]==="\n")i++;
   }else{
    field+=ch;
   }
