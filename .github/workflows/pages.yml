@@ -41,6 +41,9 @@ jobs:
       - name: Install exact locked dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
 
+      - name: Fetch and verify patched SheetJS workbook reader
+        run: npm run prepare:sheetjs
+
       - name: Validate JavaScript source
         run: |
           node --check engine.js
@@ -69,6 +72,8 @@ jobs:
           cp index.html styles.css engine.js workbook.js app-main.js universe.js _site/
           cp sample-data/aster_industries.csv _site/sample-data/aster_industries.csv
           cp LICENSE README.md THIRD_PARTY_NOTICES.md _site/
+          cp vendor/xlsx.full.min.js _site/vendor/xlsx.full.min.js
+          cp vendor/SHEETJS-LICENSE _site/vendor/SHEETJS-LICENSE
           cp node_modules/xlsx-js-style/dist/xlsx.bundle.js _site/vendor/xlsx.bundle.js
           cp node_modules/xlsx-js-style/LICENSE _site/vendor/XLSX-JS-STYLE-LICENSE
           cp node_modules/jszip/dist/jszip.min.js _site/vendor/jszip.min.js
