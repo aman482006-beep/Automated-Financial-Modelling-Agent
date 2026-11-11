@@ -330,3 +330,22 @@ test("malicious project backup values are normalised and cannot inject HTML attr
     await page.close();
   }
 });
+
+
+test("keyboard skip link moves focus to the main workspace", async () => {
+  const { page, pageErrors } = await openPage();
+  try {
+    await page.keyboard.press("Tab");
+    assert.equal(
+      await page.evaluate(() => document.activeElement?.classList?.contains("skip-link")),
+      true,
+      "the skip link should be the first keyboard stop"
+    );
+    await page.keyboard.press("Enter");
+    await page.waitForFunction(() => document.activeElement?.id === "main-content");
+    assert.equal(await page.evaluate(() => location.hash), "#main-content");
+    assert.deepEqual(pageErrors, []);
+  } finally {
+    await page.close();
+  }
+});
