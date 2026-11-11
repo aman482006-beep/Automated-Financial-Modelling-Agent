@@ -41,8 +41,16 @@ function normaliseProject(p){
  p.history=history;
  const rawAssumptions=p.assumptions&&typeof p.assumptions==="object"&&!Array.isArray(p.assumptions)?p.assumptions:{};
  const rawDcf=p.dcf&&typeof p.dcf==="object"&&!Array.isArray(p.dcf)?p.dcf:{};
- p.assumptions={...E.clone(E.DEFAULT_ASSUMPTIONS),...rawAssumptions};
- p.dcf={...E.clone(E.DEFAULT_DCF),...rawDcf};
+ p.assumptions=E.clone(E.DEFAULT_ASSUMPTIONS);
+ Object.keys(E.DEFAULT_ASSUMPTIONS).forEach(key=>{
+  p.assumptions[key]=safeNumber(rawAssumptions[key],E.DEFAULT_ASSUMPTIONS[key]);
+ });
+ p.dcf=E.clone(E.DEFAULT_DCF);
+ Object.entries(E.DEFAULT_DCF).forEach(([key,fallback])=>{
+  p.dcf[key]=key==="terminalMethod"
+   ?(["growth","multiple"].includes(rawDcf[key])?rawDcf[key]:fallback)
+   :safeNumber(rawDcf[key],fallback);
+ });
  const inputPeers=Array.isArray(p.peers)?p.peers.slice(0,100):E.clone(E.DEFAULT_PEERS);
  const peerKeys=["ev","revenue","ebitda","ebit","netIncome","marketCap","bookEquity"];
  p.peers=inputPeers.map((candidate,i)=>{
