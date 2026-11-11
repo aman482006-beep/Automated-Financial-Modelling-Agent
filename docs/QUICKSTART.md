@@ -18,7 +18,7 @@ For every real issuer, confirm the company name, NSE symbol, reporting entity (s
 
 ## 3. Import and map historical statements
 
-Supported imports are CSV, XLSX and XLS. A batch can contain at most 10 files, 20 MB per file and 40 MB total. Excel imports inspect at most 30 worksheets and 10,000 rows per worksheet.
+Supported imports are CSV, XLSX and XLS. Workbook uploads are parsed with the patched SheetJS Community Edition 0.20.3 browser reader, fetched from the official SheetJS CDN and SHA-512 verified. A batch can contain at most 10 files, 20 MB per file and 40 MB total. Excel imports inspect at most 30 worksheets and 10,000 rows per worksheet.
 
 The importer recognises common annual statement layouts and Screener.in Data Sheet exports. Review the mapping table: automatically mapped labels are suggestions, not independent verification. Leave unknown values blank until you can verify them.
 
