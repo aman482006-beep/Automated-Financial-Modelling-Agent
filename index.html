@@ -247,6 +247,26 @@
    ],()=>!!window.XLSX?.utils?.book_new&&typeof window.XLSX?.writeFile==="function","Styled Excel export library");
    window.ModelForgeXLSXWriter=window.XLSX;
   }catch(error){window.ModelForgeXlsxStyleLoadError=error.message;}
+  if(window.XLSX){
+   try{
+    const styleBundle=window.XLSX;
+    const writerUtils={};
+    ["book_new","aoa_to_sheet","book_append_sheet","decode_range","encode_range","encode_cell"].forEach(name=>{
+     if(typeof styleBundle.utils?.[name]!=="function")throw new Error("Missing required Excel writer utility: "+name);
+     writerUtils[name]=styleBundle.utils[name].bind(styleBundle.utils);
+    });
+    window.ModelForgeXLSXWriter=Object.freeze({
+     utils:Object.freeze(writerUtils),
+     writeFile:styleBundle.writeFile.bind(styleBundle)
+    });
+    // Expose only the write/report API; keep the legacy reader unreachable to app code.
+    window.XLSX=window.ModelForgeXLSXWriter;
+   }catch(error){
+    window.ModelForgeXLSXWriter=null;
+    window.XLSX=undefined;
+    window.ModelForgeXlsxStyleLoadError=error.message;
+   }
+  }
   try{
    await loadOneOf([
     "./vendor/jszip.min.js",
