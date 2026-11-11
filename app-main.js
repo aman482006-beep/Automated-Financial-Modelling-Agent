@@ -27,7 +27,9 @@ function normaliseProject(p){
   currency:["INR","USD","EUR","GBP","SGD"].includes(sourceProfile.currency)?sourceProfile.currency:"INR",
   unit:["millions","thousands","crores","actual"].includes(sourceProfile.unit)?sourceProfile.unit:"millions",
   frequency:["Annual","Quarterly"].includes(sourceProfile.frequency)?sourceProfile.frequency:"Annual",
-  sharesOutstanding:safeNumber(sourceProfile.sharesOutstanding,100)
+  sharesOutstanding:safeNumber(sourceProfile.sharesOutstanding,100),
+  symbol:safeText(sourceProfile.symbol,"",30),
+  exchange:safeText(sourceProfile.exchange,"",20)
  };
  const old=p.history&&typeof p.history==="object"&&!Array.isArray(p.history)?p.history:{};
  let periods=Array.isArray(old.periods)?old.periods.slice(0,100).map(x=>safeText(x,"",40)).filter(Boolean):[];
