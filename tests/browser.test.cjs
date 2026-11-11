@@ -248,3 +248,22 @@ test("Load opens the file picker and imports multi-sheet Excel after title rows"
     await page.close();
   }
 });
+
+test("CSV import preserves quoted multiline fields and does not split a single record", async () => {
+  const { page, pageErrors } = await openPage();
+  try {
+    const csv = 'Period,Item,Value\\r\\n2024,"Revenue, audited\\r\\ncontinuation",100\\r\\n';
+    await page.locator("#fileInput").setInputFiles({
+      name: "quoted-statements.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(csv, "utf8"),
+    });
+    await page.waitForFunction(() => window.ModelForge.getProject().rawRecords?.length === 1);
+    const project = await page.evaluate(() => window.ModelForge.getProject());
+    assert.equal(project.rawRecords[0].label, "Revenue, audited\\r\\ncontinuation");
+    assert.equal(project.rawRecords[0].value, 100);
+    assert.deepEqual(pageErrors, []);
+  } finally {
+    await page.close();
+  }
+});
