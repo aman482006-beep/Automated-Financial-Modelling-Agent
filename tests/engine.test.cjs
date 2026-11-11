@@ -352,12 +352,12 @@ test("wide-format Excel import recognises FY-prefixed period columns", () => {
 });
 
 test("CSV parser preserves quoted commas, escaped quotes, embedded newlines and UTF-8 BOM", () => {
-  const rows = E.parseCsv('\\uFEFFPeriod,Company,Notes,Value\\r\\n2024,"Acme, Inc.","said ""hello""",100\\r\\n2025,Acme,"line one\\r\\nline two",120\\r\\n');
+  const rows = E.parseCsv('\uFEFFPeriod,Company,Notes,Value\r\n2024,"Acme, Inc.","said ""hello""",100\r\n2025,Acme,"line one\r\nline two",120\r\n');
   assert.equal(rows.length, 2);
   assert.equal(rows[0].Company, "Acme, Inc.");
   assert.equal(rows[0].Notes, 'said "hello"');
   assert.equal(rows[0].Value, "100");
-  assert.equal(rows[1].Notes, "line one\\r\\nline two");
+  assert.equal(rows[1].Notes, "line one\r\nline two");
   assert.equal(rows[1].Value, "120");
 });
 
