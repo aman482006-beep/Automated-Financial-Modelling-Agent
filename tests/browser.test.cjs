@@ -278,10 +278,12 @@ test("uploaded workbooks use the patched SheetJS reader separately from the lega
       reader: window.ModelForgeXLSXReader?.version,
       writerAvailable: Boolean(window.ModelForgeXLSXWriter?.utils?.book_new && window.ModelForgeXLSXWriter?.writeFile),
       readerAndWriterAreSeparate: window.ModelForgeXLSXReader !== window.ModelForgeXLSXWriter,
+      legacyReadApiExposed: typeof window.XLSX?.read === "function",
     }));
     assert.equal(versions.reader, "0.20.3");
     assert.equal(versions.writerAvailable, true);
     assert.equal(versions.readerAndWriterAreSeparate, true);
+    assert.equal(versions.legacyReadApiExposed, false);
     assert.deepEqual(pageErrors, []);
   } finally {
     await page.close();
