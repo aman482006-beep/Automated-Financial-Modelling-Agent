@@ -362,8 +362,8 @@ test("CSV parser preserves quoted commas, escaped quotes, embedded newlines and 
 });
 
 test("CSV parser rejects malformed quotes and configured resource-limit violations", () => {
-  assert.throws(() => E.parseCsv('Period,Revenue\\n2024,"100'), /unclosed quoted field/i);
-  assert.throws(() => E.parseCsv("A,B\\n1,2\\n3,4", { maxRows: 1 }), /more than 1 data rows/i);
-  assert.throws(() => E.parseCsv("A,B,C\\n1,2,3", { maxColumns: 2 }), /more than 2 columns/i);
-  assert.throws(() => E.parseCsv("A\\n"+"x".repeat(20), { maxFieldLength: 10 }), /field longer/i);
+  assert.throws(() => E.parseCsv('Period,Revenue\n2024,"100'), /unclosed quoted field/i);
+  assert.throws(() => E.parseCsv("A,B\n1,2\n3,4", { maxRows: 1 }), /more than 1 data rows/i);
+  assert.throws(() => E.parseCsv("A,B,C\n1,2,3", { maxColumns: 2 }), /more than 2 columns/i);
+  assert.throws(() => E.parseCsv("A\n"+"x".repeat(20), { maxFieldLength: 10 }), /field longer/i);
 });
