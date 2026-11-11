@@ -11,7 +11,7 @@ function normaliseProject(p){
  const today=String(new Date().getFullYear());
  const safeText=(value,fallback="",max=160)=>{
   if(value===null||value===undefined)return fallback;
-  return String(value).replace(/[\\u0000-\\u001F\\u007F]/g," ").trim().slice(0,max);
+  return String(value).replace(/[\u0000-\u001F\u007F]/g," ").trim().slice(0,max);
  };
  const safeNumber=(value,fallback=null)=>{
   if(value===null||value===undefined||value==="")return fallback;
@@ -23,7 +23,7 @@ function normaliseProject(p){
   name:safeText(sourceProfile.name,"",120),
   analyst:safeText(sourceProfile.analyst,"Financial Analyst",80)||"Financial Analyst",
   industry:safeText(sourceProfile.industry,"",100),
-  valuationDate:/^\\d{4}-\\d{2}-\\d{2}$/.test(String(sourceProfile.valuationDate||""))?sourceProfile.valuationDate:new Date().toISOString().slice(0,10),
+  valuationDate:/^\d{4}-\d{2}-\d{2}$/.test(String(sourceProfile.valuationDate||""))?sourceProfile.valuationDate:new Date().toISOString().slice(0,10),
   currency:["INR","USD","EUR","GBP","SGD"].includes(sourceProfile.currency)?sourceProfile.currency:"INR",
   unit:["millions","thousands","crores","actual"].includes(sourceProfile.unit)?sourceProfile.unit:"millions",
   frequency:["Annual","Quarterly"].includes(sourceProfile.frequency)?sourceProfile.frequency:"Annual",
@@ -49,7 +49,7 @@ function normaliseProject(p){
   const peer=candidate&&typeof candidate==="object"&&!Array.isArray(candidate)?candidate:{};
   const defaults=E.DEFAULT_PEERS[i]||{};
   const clean={name:safeText(peer.name,defaults.name||("Peer "+(i+1)),120),synthetic:peer.synthetic===true};
-  peerKeys.forEach(key=>{clean[key]=safeNumber(peer[key],defaults[key]??null);});
+  peerKeys.forEach(key=>{clean[key]=safeNumber(peer[key],null);});
   return clean;
  });
  const sourceMapping=p.mapping&&typeof p.mapping==="object"&&!Array.isArray(p.mapping)?p.mapping:{};
