@@ -23,6 +23,9 @@ let baseUrl;
 
 function resolveRequest(pathname) {
   if (pathname === "/") return path.join(ROOT, "index.html");
+  if (pathname === "/vendor/xlsx.full.min.js") {
+    return path.join(ROOT, "vendor", "xlsx.full.min.js");
+  }
   if (pathname === "/vendor/xlsx.bundle.js") {
     return path.join(ROOT, "node_modules", "xlsx-js-style", "dist", "xlsx.bundle.js");
   }
@@ -243,6 +246,85 @@ test("Load opens the file picker and imports multi-sheet Excel after title rows"
     assert.deepEqual(project.capex, [-60,-65]);
     assert.deepEqual(project.fcf, [120,135]);
     assert.equal(project.readiness, 0);
+    assert.deepEqual(pageErrors, []);
+  } finally {
+    await page.close();
+  }
+});
+
+test("CSV import preserves quoted multiline fields and does not split a single record", async () => {
+  const { page, pageErrors } = await openPage();
+  try {
+    const csv = 'Period,Item,Value\r\n2024,"Revenue, audited\r\ncontinuation",100\r\n';
+    await page.locator("#fileInput").setInputFiles({
+      name: "quoted-statements.csv",
+      mimeType: "text/csv",
+      buffer: Buffer.from(csv, "utf8"),
+    });
+    await page.waitForFunction(() => window.ModelForge.getProject().rawRecords?.length === 1);
+    const project = await page.evaluate(() => window.ModelForge.getProject());
+    assert.equal(project.rawRecords[0].label, "Revenue, audited continuation");
+    assert.equal(project.rawRecords[0].value, 100);
+    assert.deepEqual(pageErrors, []);
+  } finally {
+    await page.close();
+  }
+});
+
+test("uploaded workbooks use the patched SheetJS reader separately from the legacy styled export library", async () => {
+  const { page, pageErrors } = await openPage();
+  try {
+    const versions = await page.evaluate(() => ({
+      reader: window.ModelForgeXLSXReader?.version,
+      writerAvailable: Boolean(window.ModelForgeXLSXWriter?.utils?.book_new && window.ModelForgeXLSXWriter?.writeFile),
+      readerAndWriterAreSeparate: window.ModelForgeXLSXReader !== window.ModelForgeXLSXWriter,
+      legacyReadApiExposed: typeof window.XLSX?.read === "function",
+    }));
+    assert.equal(versions.reader, "0.20.3");
+    assert.equal(versions.writerAvailable, true);
+    assert.equal(versions.readerAndWriterAreSeparate, true);
+    assert.equal(versions.legacyReadApiExposed, false);
+    assert.deepEqual(pageErrors, []);
+  } finally {
+    await page.close();
+  }
+});
+
+test("malicious project backup values are normalised and cannot inject HTML attributes", async () => {
+  const { page, pageErrors } = await openPage();
+  try {
+    const payload = await page.evaluate(() => {
+      const project = JSON.parse(JSON.stringify(window.ModelForge.getProject()));
+      project.history.IS.revenue[0] = '" autofocus onfocus="window.__modelForgeInjected=true';
+      project.peers[0].revenue = '" autofocus onfocus="window.__modelForgeInjected=true';
+      project.dcf.exitMultiple = '" autofocus onfocus="window.__modelForgeInjected=true';
+      project.dcf.terminalMethod = "multiple";
+      project.assumptions.revenueGrowth = '" autofocus onfocus="window.__modelForgeInjected=true';
+      project.rawRecords = [null, { period: "2025", label: "Revenue", value: 100 }];
+      return JSON.stringify(project);
+    });
+    await page.locator("#loadProjectFile").setInputFiles({
+      name: "hostile-project.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(payload, "utf8"),
+    });
+    await page.waitForFunction(() => document.querySelector("#toast")?.textContent.includes("Project loaded."));
+    const result = await page.evaluate(() => ({
+      injected: window.__modelForgeInjected === true,
+      historyValue: window.ModelForge.getProject().history.IS.revenue[0],
+      peerValue: window.ModelForge.getProject().peers[0].revenue,
+      dcfValue: window.ModelForge.getProject().dcf.exitMultiple,
+      assumptionValue: window.ModelForge.getProject().assumptions.revenueGrowth,
+      terminalInputValue: document.querySelector("#terminalValueInput")?.value,
+      injectedElements: document.querySelectorAll("#historyEditor [onfocus], #peerTable [onfocus], #terminalInputs [onfocus], #historyEditor img, #peerTable img, #terminalInputs img").length,
+    }));
+    assert.equal(result.injected, false);
+    assert.equal(result.historyValue, null);
+    assert.equal(result.peerValue, null);
+    assert.equal(result.dcfValue, 9);
+    assert.equal(result.assumptionValue, 0.1);
+    assert.equal(result.terminalInputValue, "9");
+    assert.equal(result.injectedElements, 0);
     assert.deepEqual(pageErrors, []);
   } finally {
     await page.close();

@@ -30,3 +30,6 @@ __pycache__/
 Thumbs.db
 .vscode/
 .idea/
+
+# Verified vendor bundles fetched from upstream project CDNs
+vendor/

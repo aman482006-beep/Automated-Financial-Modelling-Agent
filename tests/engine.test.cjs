@@ -350,3 +350,20 @@ test("wide-format Excel import recognises FY-prefixed period columns", () => {
   assert.deepEqual(history.IS.revenue, [100,120]);
   assert.deepEqual(history.IS.cogs, [-55,-62]);
 });
+
+test("CSV parser preserves quoted commas, escaped quotes, embedded newlines and UTF-8 BOM", () => {
+  const rows = E.parseCsv('\uFEFFPeriod,Company,Notes,Value\r\n2024,"Acme, Inc.","said ""hello""",100\r\n2025,Acme,"line one\r\nline two",120\r\n');
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].Company, "Acme, Inc.");
+  assert.equal(rows[0].Notes, 'said "hello"');
+  assert.equal(rows[0].Value, "100");
+  assert.equal(rows[1].Notes, "line one\r\nline two");
+  assert.equal(rows[1].Value, "120");
+});
+
+test("CSV parser rejects malformed quotes and configured resource-limit violations", () => {
+  assert.throws(() => E.parseCsv('Period,Revenue\n2024,"100'), /unclosed quoted field/i);
+  assert.throws(() => E.parseCsv("A,B\n1,2\n3,4", { maxRows: 1 }), /more than 1 data rows/i);
+  assert.throws(() => E.parseCsv("A,B,C\n1,2,3", { maxColumns: 2 }), /more than 2 columns/i);
+  assert.throws(() => E.parseCsv("A\n"+"x".repeat(20), { maxFieldLength: 10 }), /field longer/i);
+});

@@ -2,34 +2,112 @@
 "use strict";
 const E=window.ModelEngine,$=s=>document.querySelector(s),$$=s=>Array.from(document.querySelectorAll(s));
 const KEY="modelforge.project.v2",symbols={INR:"₹",USD:"$",EUR:"€",GBP:"£",SGD:"S$"};
+const MAX_IMPORT_FILES=10,MAX_IMPORT_FILE_BYTES=20*1024*1024,MAX_TOTAL_IMPORT_BYTES=40*1024*1024,MAX_PROJECT_FILE_BYTES=10*1024*1024,MAX_IMPORT_RECORDS=250000,MAX_WORKSHEETS=30,MAX_WORKSHEET_ROWS=10000;
 let project=normaliseProject(loadSaved()||E.defaultProject()),forecast=[],ratios=[],valuation,modelStatus,noticeTimer,universeSize=100;
 const EMPTY_VALUATION={valid:false,errors:["Complete the required historical inputs before calculating valuation."],wacc:null,costEquity:null,equityWeight:null,debtWeight:null,flows:[],pvForecast:null,terminalValue:null,pvTerminal:null,enterpriseValue:null,netDebt:null,equityValue:null,perShare:null};
 
 function normaliseProject(p){
- p=p&&typeof p==="object"?p:{};
+ p=p&&typeof p==="object"&&!Array.isArray(p)?p:{};
  const today=String(new Date().getFullYear());
- p.profile={name:"",analyst:"Financial Analyst",industry:"",valuationDate:new Date().toISOString().slice(0,10),currency:"INR",unit:"millions",frequency:"Annual",sharesOutstanding:100,...(p.profile||{})};
- const old=p.history&&typeof p.history==="object"?p.history:{};
- let periods=Array.isArray(old.periods)?old.periods.map(x=>String(x).trim()).filter(Boolean):[];
+ const safeText=(value,fallback="",max=160)=>{
+  if(value===null||value===undefined)return fallback;
+  return String(value).replace(/[\u0000-\u001F\u007F]/g," ").replace(/\s+/g," ").trim().slice(0,max);
+ };
+ const safeNumber=(value,fallback=null)=>{
+  if(value===null||value===undefined||value==="")return fallback;
+  const parsed=E.parseNumber(value);
+  return Number.isFinite(parsed)?parsed:fallback;
+ };
+ const sourceProfile=p.profile&&typeof p.profile==="object"&&!Array.isArray(p.profile)?p.profile:{};
+ p.profile={
+  name:safeText(sourceProfile.name,"",120),
+  analyst:safeText(sourceProfile.analyst,"Financial Analyst",80)||"Financial Analyst",
+  industry:safeText(sourceProfile.industry,"",100),
+  valuationDate:/^\d{4}-\d{2}-\d{2}$/.test(String(sourceProfile.valuationDate||""))?sourceProfile.valuationDate:new Date().toISOString().slice(0,10),
+  currency:["INR","USD","EUR","GBP","SGD"].includes(sourceProfile.currency)?sourceProfile.currency:"INR",
+  unit:["millions","thousands","crores","actual"].includes(sourceProfile.unit)?sourceProfile.unit:"millions",
+  frequency:["Annual","Quarterly"].includes(sourceProfile.frequency)?sourceProfile.frequency:"Annual",
+  sharesOutstanding:safeNumber(sourceProfile.sharesOutstanding,100),
+  symbol:safeText(sourceProfile.symbol,"",30),
+  exchange:safeText(sourceProfile.exchange,"",20)
+ };
+ const old=p.history&&typeof p.history==="object"&&!Array.isArray(p.history)?p.history:{};
+ let periods=Array.isArray(old.periods)?old.periods.slice(0,100).map(x=>safeText(x,"",40)).filter(Boolean):[];
  periods=Array.from(new Set(periods));
  if(!periods.length)periods=[today];
  const history=E.blankHistory(periods);
  Object.keys(E.ITEMS).forEach(group=>E.ITEMS[group].forEach(([key])=>{
   const values=Array.isArray(old[group]?.[key])?old[group][key]:[];
-  history[group][key]=periods.map((_,i)=>values[i]??null);
+  history[group][key]=periods.map((_,i)=>safeNumber(values[i],null));
  }));
  p.history=history;
- if(!Array.isArray(p.history.IS.otherIncome))p.history.IS.otherIncome=periods.map(()=>0);
- p.assumptions={...E.clone(E.DEFAULT_ASSUMPTIONS),...(p.assumptions||{})};
- p.dcf={...E.clone(E.DEFAULT_DCF),...(p.dcf||{})};
- p.peers=Array.isArray(p.peers)?p.peers:E.clone(E.DEFAULT_PEERS);
- p.mapping=p.mapping&&typeof p.mapping==="object"?p.mapping:{};
- p.rawRecords=Array.isArray(p.rawRecords)?p.rawRecords:[];
- p.importMeta=p.importMeta&&typeof p.importMeta==="object"?p.importMeta:{};
- p.importMeta.sourceFiles=Array.isArray(p.importMeta.sourceFiles)?p.importMeta.sourceFiles:[];
- p.importMeta.sourceNotes=Array.isArray(p.importMeta.sourceNotes)?p.importMeta.sourceNotes:[];
- p.forecastYears=Number(p.forecastYears)||5;
- p.theme=p.theme||"light";
+ const rawAssumptions=p.assumptions&&typeof p.assumptions==="object"&&!Array.isArray(p.assumptions)?p.assumptions:{};
+ const rawDcf=p.dcf&&typeof p.dcf==="object"&&!Array.isArray(p.dcf)?p.dcf:{};
+ p.assumptions=E.clone(E.DEFAULT_ASSUMPTIONS);
+ Object.keys(E.DEFAULT_ASSUMPTIONS).forEach(key=>{
+  p.assumptions[key]=safeNumber(rawAssumptions[key],E.DEFAULT_ASSUMPTIONS[key]);
+ });
+ p.dcf=E.clone(E.DEFAULT_DCF);
+ Object.entries(E.DEFAULT_DCF).forEach(([key,fallback])=>{
+  p.dcf[key]=key==="terminalMethod"
+   ?(["growth","multiple"].includes(rawDcf[key])?rawDcf[key]:fallback)
+   :safeNumber(rawDcf[key],fallback);
+ });
+ const inputPeers=Array.isArray(p.peers)?p.peers.slice(0,100):E.clone(E.DEFAULT_PEERS);
+ const peerKeys=["ev","revenue","ebitda","ebit","netIncome","marketCap","bookEquity"];
+ p.peers=inputPeers.map((candidate,i)=>{
+  const peer=candidate&&typeof candidate==="object"&&!Array.isArray(candidate)?candidate:{};
+  const defaults=E.DEFAULT_PEERS[i]||{};
+  const clean={name:safeText(peer.name,defaults.name||("Peer "+(i+1)),120),synthetic:peer.synthetic===true};
+  peerKeys.forEach(key=>{clean[key]=safeNumber(peer[key],null);});
+  return clean;
+ });
+ const sourceMapping=p.mapping&&typeof p.mapping==="object"&&!Array.isArray(p.mapping)?p.mapping:{};
+ const mapping=Object.create(null);
+ Object.entries(sourceMapping).slice(0,1000).forEach(([label,value])=>{
+  const key=safeText(label,"",200);
+  if(!key||typeof value!=="string")return;
+  if(value==="ignore"){mapping[key]="ignore";return;}
+  const parts=value.split(".");
+  if(parts.length===2&&Object.hasOwn(E.ITEMS,parts[0])&&E.ITEMS[parts[0]].some(([item])=>item===parts[1]))mapping[key]=value;
+ });
+ p.mapping=mapping;
+ const inputRecords=Array.isArray(p.rawRecords)?p.rawRecords.slice(0,MAX_IMPORT_RECORDS):[];
+ p.rawRecords=inputRecords.map(row=>{
+  if(!row||typeof row!=="object"||Array.isArray(row))return null;
+  const clean={
+   period:safeText(row.period,"",40),
+   label:safeText(row.label,"",200),
+   value:safeNumber(row.value,null),
+   statement:safeText(row.statement,"",100)
+  };
+  if(typeof row.mapped==="string")clean.mapped=row.mapped.slice(0,80);
+  return clean.period&&clean.label&&clean.value!==null?clean:null;
+ }).filter(Boolean);
+ const meta=p.importMeta&&typeof p.importMeta==="object"&&!Array.isArray(p.importMeta)?p.importMeta:{};
+ p.importMeta={
+  source:safeText(meta.source,"",120),
+  sourceFiles:Array.isArray(meta.sourceFiles)?meta.sourceFiles.slice(0,MAX_IMPORT_FILES).map(x=>safeText(x,"",180)).filter(Boolean):[],
+  importedAt:safeText(meta.importedAt,"",40),
+  currentPrice:safeNumber(meta.currentPrice,null),
+  marketCapCrores:safeNumber(meta.marketCapCrores,null),
+  sharesOutstandingCrores:safeNumber(meta.sharesOutstandingCrores,null),
+  latestPeriod:safeText(meta.latestPeriod,"",40),
+  latestDate:safeText(meta.latestDate,"",20),
+  sourceNotes:Array.isArray(meta.sourceNotes)?meta.sourceNotes.slice(0,100).map(x=>safeText(x,"",500)).filter(Boolean):[]
+ };
+ if(p.security&&typeof p.security==="object"&&!Array.isArray(p.security)){
+  p.security={
+   name:safeText(p.security.name,"",120),
+   symbol:safeText(p.security.symbol,"",30),
+   sector:safeText(p.security.sector,"",100),
+   universeIndex:safeText(p.security.universeIndex,"",40),
+   asOf:safeText(p.security.asOf,"",20)
+  };
+ }else delete p.security;
+ const requestedYears=Number(p.forecastYears);
+ p.forecastYears=Number.isInteger(requestedYears)?Math.max(1,Math.min(10,requestedYears)):5;
+ p.theme=["light","navy","midnight","emerald","graphite","warm"].includes(p.theme)?p.theme:"light";
  return p;
 }
 function loadSaved(){try{const p=JSON.parse(localStorage.getItem(KEY)||"null");return p&&p.profile&&p.history?normaliseProject(p):null}catch(e){return null}}
@@ -87,7 +165,7 @@ function renderValidation(){
 }
 function renderHistoryEditor(){
  const g=$("#historyStatement").value,h=project.history,items=E.ITEMS[g],years=h.periods;
- $("#historyEditor").innerHTML="<thead><tr><th>Line item</th>"+years.map(y=>"<th>"+esc(y)+"</th>").join("")+"</tr></thead><tbody>"+items.map(([k,label])=>"<tr><td>"+esc(label)+"</td>"+years.map((y,i)=>'<td><input type="number" step="any" data-hist-group="'+g+'" data-hist-key="'+k+'" data-hist-index="'+i+'" value="'+(h[g][k][i]===null?"":h[g][k][i])+'"></td>').join("")+"</tr>").join("")+"</tbody>";
+ $("#historyEditor").innerHTML="<thead><tr><th>Line item</th>"+years.map(y=>"<th>"+esc(y)+"</th>").join("")+"</tr></thead><tbody>"+items.map(([k,label])=>"<tr><td>"+esc(label)+"</td>"+years.map((y,i)=>'<td><input type="number" step="any" data-hist-group="'+esc(g)+'" data-hist-key="'+esc(k)+'" data-hist-index="'+i+'" value="'+esc(h[g][k][i]===null?"":h[g][k][i])+'"></td>').join("")+"</tr>").join("")+"</tbody>";
 }
 function renderHistory(){
  const r=ratios,h=project.history,first=r[0]||{},last=r.at(-1)||{},cagr=r.length>1&&n(h.IS.revenue[0])>0?Math.pow(n(h.IS.revenue.at(-1))/n(h.IS.revenue[0]),1/(r.length-1))-1:null;
@@ -99,7 +177,7 @@ function renderHistory(){
 function renderAssumptions(){
  const defs=[["revenueGrowth","Revenue growth","%"],["grossMargin","Gross margin","%"],["employeePct","Employee costs / revenue","%"],["otherOpexPct","Other opex / revenue","%"],["daPct","D&A / opening PP&E","%"],["taxRate","Effective tax rate","%"],["capexPct","Capex / revenue","%"],["arDays","Receivable days","days"],["inventoryDays","Inventory days","days"],["apDays","Payable days","days"],["otherCurrentAssetsPct","Other current assets / revenue","%"],["otherLiabilitiesPct","Other liabilities / revenue","%"],["annualDebtRepayment","Annual debt repayment",project.profile.unit],["interestRate","Interest rate","%"],["dividendPayout","Dividend payout ratio","%"]];
  const percent=new Set(defs.filter(x=>x[2]==="%").map(x=>x[0]));
- $("#assumptionGrid").innerHTML=defs.map(([k,label,u])=>'<div class="assumption-field"><label>'+label+'</label><div class="input-wrap"><input data-assumption="'+k+'" type="number" step="'+(percent.has(k)?".1":"1")+'" value="'+(n(project.assumptions[k])*(percent.has(k)?100:1))+'"><span class="suffix">'+u+'</span></div></div>').join("");
+ $("#assumptionGrid").innerHTML=defs.map(([k,label,u])=>'<div class="assumption-field"><label>'+label+'</label><div class="input-wrap"><input data-assumption="'+k+'" type="number" step="'+(percent.has(k)?".1":"1")+'" value="'+esc(n(project.assumptions[k])*(percent.has(k)?100:1))+'"><span class="suffix">'+u+'</span></div></div>').join("");
  $$("[data-assumption]").forEach(el=>el.addEventListener("change",()=>{const k=el.dataset.assumption;project.assumptions[k]=n(el.value)/(percent.has(k)?100:1);rebuild();persist()}));
 }
 function renderForecastTable(id,title,items){const years=forecast.map(x=>x.year);$("#"+id).innerHTML="<thead><tr><th>"+title+"</th>"+years.map(y=>"<th>"+esc(y)+"</th>").join("")+"</tr></thead><tbody>"+items.map(([label,key,fn])=>"<tr><td>"+label+"</td>"+forecast.map(x=>"<td>"+(fn?fn(x):fmt(x[key]))+"</td>").join("")+"</tr>").join("")+"</tbody>"}
@@ -118,13 +196,13 @@ function renderForecast(){
 function renderWACC(){
  const defs=[["riskFreeRate","Risk-free rate","%"],["equityRiskPremium","Equity risk premium","%"],["beta","Levered beta","x"],["costOfDebt","Pre-tax cost of debt","%"],["equityMarketValue","Market value of equity",project.profile.unit],["debtMarketValue","Market value of debt",project.profile.unit]];
  const pctKeys=new Set(["riskFreeRate","equityRiskPremium","costOfDebt"]);
- $("#waccInputs").innerHTML=defs.map(([k,label,u])=>'<label>'+label+'<input type="number" step="any" data-dcf="'+k+'" value="'+(n(project.dcf[k])*(pctKeys.has(k)?100:1))+'"><small>'+u+'</small></label>').join("");
+ $("#waccInputs").innerHTML=defs.map(([k,label,u])=>'<label>'+label+'<input type="number" step="any" data-dcf="'+k+'" value="'+esc(n(project.dcf[k])*(pctKeys.has(k)?100:1))+'"><small>'+u+'</small></label>').join("");
  $$("[data-dcf]").forEach(el=>el.addEventListener("change",()=>{const k=el.dataset.dcf;project.dcf[k]=n(el.value)/(pctKeys.has(k)?100:1);rebuild();persist()}));
 }
 function renderTerminal(){
  $$("[name=terminalMethod]").forEach(el=>el.checked=el.value===project.dcf.terminalMethod);
  const g=project.dcf.terminalMethod==="growth";
- $("#terminalInputs").innerHTML=g?'<label>Perpetual growth rate (%)<input id="terminalValueInput" type="number" step=".1" value="'+(project.dcf.perpetualGrowth*100)+'"></label>':'<label>Exit EBITDA multiple (x)<input id="terminalValueInput" type="number" step=".1" value="'+project.dcf.exitMultiple+'"></label>';
+ $("#terminalInputs").innerHTML=g?'<label>Perpetual growth rate (%)<input id="terminalValueInput" type="number" step=".1" value="'+esc(project.dcf.perpetualGrowth*100)+'"></label>':'<label>Exit EBITDA multiple (x)<input id="terminalValueInput" type="number" step=".1" value="'+esc(project.dcf.exitMultiple)+'"></label>';
  $("#terminalValueInput").addEventListener("change",e=>{if(g)project.dcf.perpetualGrowth=n(e.target.value)/100;else project.dcf.exitMultiple=n(e.target.value);rebuild();persist()});
 }
 function renderDCF(){
@@ -142,7 +220,7 @@ function renderDCF(){
 function peerStats(){return E.peerStatistics(project.peers)}
 function renderPeers(){
  const fields=[["ev","EV"],["revenue","Revenue"],["ebitda","EBITDA"],["ebit","EBIT"],["netIncome","Net income"],["marketCap","Market cap"],["bookEquity","Book equity"]];
- $("#peerTable").innerHTML="<thead><tr><th>Company / status</th>"+fields.map(x=>"<th>"+x[1]+"</th>").join("")+"<th></th></tr></thead><tbody>"+project.peers.map((p,i)=>'<tr><td><input class="peer-input" data-peer="'+i+'" data-peer-key="name" value="'+esc(p.name)+'"></td>'+fields.map(([k])=>'<td><input type="number" step="any" class="peer-input" data-peer="'+i+'" data-peer-key="'+k+'" value="'+(p[k]??"")+'"></td>').join("")+'<td><button type="button" class="text-link" data-remove-peer="'+i+'">Remove</button></td></tr>').join("")+"</tbody>";
+ $("#peerTable").innerHTML="<thead><tr><th>Company / status</th>"+fields.map(x=>"<th>"+x[1]+"</th>").join("")+"<th></th></tr></thead><tbody>"+project.peers.map((p,i)=>'<tr><td><input class="peer-input" data-peer="'+i+'" data-peer-key="name" value="'+esc(p.name)+'"></td>'+fields.map(([k])=>'<td><input type="number" step="any" class="peer-input" data-peer="'+i+'" data-peer-key="'+k+'" value="'+esc(p[k]??"")+'"></td>').join("")+'<td><button type="button" class="text-link" data-remove-peer="'+i+'">Remove</button></td></tr>').join("")+"</tbody>";
  const s=peerStats(),stats=[["EV / Revenue","evRevenue"],["EV / EBITDA","evEbitda"],["EV / EBIT","evEbit"],["P / E","pe"],["P / Book","pb"]];
  $("#peerStats").innerHTML="<thead><tr><th>Multiple</th><th>Median</th><th>Average</th><th>Valid peers</th></tr></thead><tbody>"+stats.map(([l,k])=>"<tr><td>"+l+"</td><td>"+(s[k].median?fmt(s[k].median,2)+"x":"—")+"</td><td>"+(s[k].average?fmt(s[k].average,2)+"x":"—")+"</td><td>"+s[k].count+"</td></tr>").join("")+"</tbody>";
  const rev=getLatest("IS","revenue")||0,ebitda=getLatest("IS","ebitda")||0,ebit=getLatest("IS","ebit")||0;
@@ -238,9 +316,7 @@ function selectUniverseCompany(symbol){
  $("#companyUniverseNotice")?.scrollIntoView({behavior:"smooth",block:"center"});toast(company.name+" selected. Upload its verified financials to populate the model.");
 }
 
-function parseCsv(txt){
- const lines=txt.replace(/^\uFEFF/,"").split(/\r?\n/).filter(x=>x.trim()),parse=line=>{let arr=[],v="",q=false;for(let i=0;i<line.length;i++){let ch=line[i];if(ch==='"'&&line[i+1]==='"'&&q){v+='"';i++}else if(ch==='"')q=!q;else if(ch===","&&!q){arr.push(v);v=""}else v+=ch}arr.push(v);return arr};if(!lines.length)return [];const heads=parse(lines[0]).map(x=>x.trim());return lines.slice(1).map(l=>{const values=parse(l),obj={};heads.forEach((k,i)=>obj[k]=values[i]??"");return obj});
-}
+function parseCsv(txt){return E.parseCsv(txt)}
 function renderMapping(){
  const labels=Array.from(new Set((project.rawRecords||[]).map(r=>r.label)));
  if(!labels.length){$("#mappingTable").innerHTML='<tbody><tr><td>No source labels imported yet. Load sample statements or upload CSV / Excel files.</td></tr></tbody>';return}
@@ -312,6 +388,10 @@ async function fileArrayBuffer(file){
 async function importStatements(files){
  window.ModelForgeLastImportNotes=[];
  if(!files.length)return;
+ if(files.length>MAX_IMPORT_FILES)throw new Error("Upload no more than "+MAX_IMPORT_FILES+" files at once.");
+ const totalBytes=files.reduce((sum,file)=>sum+(Number(file.size)||0),0);
+ if(files.some(file=>(Number(file.size)||0)>MAX_IMPORT_FILE_BYTES))throw new Error("Each CSV or Excel file must be 20 MB or smaller.");
+ if(totalBytes>MAX_TOTAL_IMPORT_BYTES)throw new Error("The combined upload size must be 40 MB or smaller.");
  setImportStatus("Reading "+files.length+" file(s) and detecting the statement layout…");
  let records=[],screenerImport=null,filesLoaded=0;
  for(const file of files){
@@ -320,17 +400,18 @@ async function importStatements(files){
    records=records.concat(E.recordsFromRows(parseCsv(await file.text()),"",file.name));
    filesLoaded++;
   }else if(["xlsx","xls"].includes(ext)){
-   const XLSXLib=window.XLSX;
-   if(!XLSXLib?.utils?.sheet_to_json)throw new Error("The Excel reader did not load. Refresh the page and retry; if the CDN is blocked, try another network or upload CSV.");
+   const XLSXLib=window.ModelForgeXLSXReader;
+   if(!XLSXLib?.utils?.sheet_to_json)throw new Error("The patched Excel reader did not load. Refresh the page or use CSV import; do not retry this workbook with the legacy export library.");
    const bytes=await fileArrayBuffer(file);
    let workbook;
    try{
-    workbook=XLSXLib.read(new Uint8Array(bytes),{type:"array",cellDates:true});
+    workbook=XLSXLib.read(new Uint8Array(bytes),{type:"array",cellDates:true,sheetRows:MAX_WORKSHEET_ROWS});
    }catch(firstError){
-    try{workbook=XLSXLib.read(bytes,{cellDates:true});}
+    try{workbook=XLSXLib.read(bytes,{cellDates:true,sheetRows:MAX_WORKSHEET_ROWS});}
     catch(secondError){throw new Error("Could not open "+file.name+": "+(secondError?.message||firstError?.message||"invalid Excel workbook"));}
    }
    if(!workbook?.SheetNames?.length)throw new Error(file.name+" contains no readable worksheets.");
+    if(workbook.SheetNames.length>MAX_WORKSHEETS)throw new Error(file.name+" contains more than "+MAX_WORKSHEETS+" worksheets. Remove unused sheets and retry.");
    const orderedSheets=[...workbook.SheetNames].sort((a,b)=>{
     const aa=E.normaliseLabel(a)==="datasheet"?0:1,bb=E.normaliseLabel(b)==="datasheet"?0:1;return aa-bb;
    });
@@ -346,6 +427,7 @@ async function importStatements(files){
    }
    filesLoaded++;
   }else throw new Error("Unsupported file type: "+file.name+". Upload a .csv, .xlsx or .xls file.");
+  if(records.length>MAX_IMPORT_RECORDS)throw new Error("The selected files contain more than "+MAX_IMPORT_RECORDS+" financial records. Split the statements into smaller imports.");
  }
  if(!records.length)throw new Error("No financial values were found in "+files.map(f=>f.name).join(", ")+". For Screener.in exports, keep the Data Sheet content intact. Other workbooks need Period/Year and line-item headers, or Period, Statement, Item and Value columns.");
  if(screenerImport){
@@ -440,7 +522,18 @@ function generateExcelReport(){
  }catch(error){toast("Export failed: "+(error?.message||String(error)));}
 }
 function saveProjectFile(){const blob=new Blob([JSON.stringify(project,null,2)],{type:"application/json"});downloadBlob((project.profile.name||"ModelForge").replace(/[^a-z0-9]+/gi,"_")+"_project.json",blob);toast("Project backup downloaded.")}
-function loadProjectFile(file){const reader=new FileReader();reader.onload=()=>{try{const p=JSON.parse(reader.result);if(!p.profile||!p.history)throw new Error("Not a ModelForge project file.");project=normaliseProject(p);syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();persist();toast("Project loaded.")}catch(e){toast("Could not load project: "+e.message)}};reader.readAsText(file)}
+async function loadProjectFile(file){
+  try{
+   if(!file)return;
+   if(file.size>MAX_PROJECT_FILE_BYTES)throw new Error("Project backups must be 10 MB or smaller.");
+   if(!String(file.name||"").toLowerCase().endsWith(".json"))throw new Error("Choose a ModelForge .json project backup.");
+   const p=JSON.parse(await file.text());
+   if(!p?.profile||typeof p.profile!=="object"||Array.isArray(p.profile)||!p?.history||typeof p.history!=="object"||!Array.isArray(p.history.periods))throw new Error("Not a valid ModelForge project file.");
+   if(p.history.periods.length>100)throw new Error("Project backups may contain no more than 100 historical periods.");
+   if(Array.isArray(p.rawRecords)&&p.rawRecords.length>MAX_IMPORT_RECORDS)throw new Error("Project backup contains too many imported financial records.");
+   project=normaliseProject(p);syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();persist();toast("Project loaded.");
+  }catch(e){toast("Could not load project: "+(e?.message||String(e)));}
+ }
 
 
 function comparePeriods(a,b){

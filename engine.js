@@ -74,6 +74,56 @@ function parseNumber(value){
  let n=Number(s);return Number.isFinite(n)?(negative?-Math.abs(n):n):null;
 }
 
+function parseCsv(text,options={}){
+ if(typeof text!=="string")throw new Error("CSV content must be text.");
+ options=options&&typeof options==="object"?options:{};
+ const maxRows=Number.isInteger(options.maxRows)?options.maxRows:100000;
+ const maxColumns=Number.isInteger(options.maxColumns)?options.maxColumns:1000;
+ const maxFieldLength=Number.isInteger(options.maxFieldLength)?options.maxFieldLength:1000000;
+ if(text.length>20*1024*1024)throw new Error("CSV exceeds the 20 MB text limit.");
+ const source=text.charCodeAt(0)===0xFEFF?text.slice(1):text,rows=[];
+ let row=[],field="",quoted=false;
+ const pushField=()=>{
+  if(field.length>maxFieldLength)throw new Error("CSV contains a field longer than the supported limit.");
+  row.push(field);field="";
+  if(row.length>maxColumns)throw new Error("CSV contains more than "+maxColumns+" columns.");
+ };
+ const pushRow=()=>{
+  pushField();
+  if(row.some(value=>value!==""))rows.push(row);
+  row=[];
+  if(rows.length>maxRows+1)throw new Error("CSV contains more than "+maxRows+" data rows.");
+ };
+ for(let i=0;i<source.length;i++){
+  const ch=source[i];
+  if(quoted){
+   if(ch==='"'){
+    if(source[i+1]==='"'){field+='"';i++;}
+    else quoted=false;
+   }else field+=ch;
+  }else if(ch==='"'&&field.length===0){
+   quoted=true;
+  }else if(ch===","){
+   pushField();
+  }else if(ch==="\n"||ch==="\r"){
+   pushRow();
+   if(ch==="\r"&&source[i+1]==="\n")i++;
+  }else{
+   field+=ch;
+  }
+  if(field.length>maxFieldLength)throw new Error("CSV contains a field longer than the supported limit.");
+ }
+ if(quoted)throw new Error("CSV contains an unclosed quoted field.");
+ if(field.length||row.length)pushRow();
+ if(!rows.length)return [];
+ const headers=rows.shift().map(value=>String(value??"").trim());
+ return rows.map(values=>{
+  const record=Object.create(null);
+  headers.forEach((header,index)=>{if(header)record[header]=values[index]??"";});
+  return record;
+ });
+}
+
 function recordsFromRows(rows,sheetName="",fileName=""){
  if(!Array.isArray(rows)||!rows.length)return [];
  const keys=Object.keys(rows[0]||{}),header=(wanted)=>keys.find(k=>wanted.includes(normaliseLabel(k)));
@@ -606,5 +656,5 @@ function operatingScenario(h,a,years,dcfInputs,terminalGrowth,terminalMultiple,m
  return result.valid?result.enterpriseValue:null;
 }
 function formatNumber(value,d=1){return Number.isFinite(value)?value.toLocaleString("en-IN",{minimumFractionDigits:d,maximumFractionDigits:d}):"—";}
-return {ITEMS,ALIASES,DEFAULT_ASSUMPTIONS,DEFAULT_DCF,DEFAULT_PEERS,SAMPLE,clone,blankHistory,defaultProject,normaliseLabel,mapLabel,parseNumber,recordsFromRows,parseScreenerDataSheet,num,historyFromRecords,historicalRatios,validateHistory,parseFinancialPeriod,periodSort,modelReadiness,validateForecastAssumptions,validateDCFInputs,buildForecast,calculateWACC,calculateDCF,peerMultiples,peerStatistics,operatingScenario,formatNumber};
+return {ITEMS,ALIASES,parseCsv,DEFAULT_ASSUMPTIONS,DEFAULT_DCF,DEFAULT_PEERS,SAMPLE,clone,blankHistory,defaultProject,normaliseLabel,mapLabel,parseNumber,recordsFromRows,parseScreenerDataSheet,num,historyFromRecords,historicalRatios,validateHistory,parseFinancialPeriod,periodSort,modelReadiness,validateForecastAssumptions,validateDCFInputs,buildForecast,calculateWACC,calculateDCF,peerMultiples,peerStatistics,operatingScenario,formatNumber};
 });

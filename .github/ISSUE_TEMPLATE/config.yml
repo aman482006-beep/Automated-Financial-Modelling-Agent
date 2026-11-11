@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Usage and support guidance
+    url: https://github.com/aman482006-beep/Automated-Financial-Modelling-Agent/blob/main/SUPPORT.md
+    about: Read where to ask questions and what data must never be shared.
+  - name: Security vulnerability reporting
+    url: https://github.com/aman482006-beep/Automated-Financial-Modelling-Agent/blob/main/SECURITY.md
+    about: Report vulnerabilities privately; do not post exploit details publicly.

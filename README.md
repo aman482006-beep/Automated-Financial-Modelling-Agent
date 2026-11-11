@@ -1,5 +1,9 @@
 # ModelForge — Browser-based Financial Modelling Workspace
 
+[![CI and GitHub Pages](https://github.com/aman482006-beep/Automated-Financial-Modelling-Agent/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/aman482006-beep/Automated-Financial-Modelling-Agent/actions/workflows/pages.yml) [![Security analysis](https://github.com/aman482006-beep/Automated-Financial-Modelling-Agent/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/aman482006-beep/Automated-Financial-Modelling-Agent/actions/workflows/security.yml) [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
+
+**[Try the live ModelForge workspace](https://aman482006-beep.github.io/Automated-Financial-Modelling-Agent/)** · [Contributing](CONTRIBUTING.md) · [Support](SUPPORT.md) · [Security](SECURITY.md) · [Roadmap](docs/ROADMAP.md) · [Changelog](CHANGELOG.md) · [Quick start](docs/QUICKSTART.md)
+
 ModelForge is a static, browser-based financial modelling application for importing historical statements, reviewing data quality, building an integrated forecast, calculating DCF and trading-comparable valuations, exploring sensitivities, and exporting a formula-linked Excel workbook.
 
 **The GitHub Pages application requires no API key, account or backend.** Core calculations run in the browser. The optional backend described in backend/README.md is only a proposed architecture; it is not deployed or required by the static application.
@@ -10,7 +14,7 @@ https://aman482006-beep.github.io/Automated-Financial-Modelling-Agent/
 
 ## What it actually does
 
-- **Financial data intake:** CSV and Excel import, multiple worksheets, wide/long layouts, manual entry, editable field mapping and source metadata.
+- **Financial data intake:** CSV and Excel import, multiple worksheets, wide/long layouts, manual entry, editable field mapping and source metadata. User-uploaded workbooks are parsed with the patched SheetJS CE 0.20.3 reader; the legacy style-enabled library is isolated to report generation.
 - **Indian company picker:** bundled NSE Nifty 100 / Nifty 200 issuer directory (200 unique securities, 100 Nifty 100 members; snapshot checked 6 Nov 2026), with searchable names, NSE symbols and sectors. Selecting a company creates a clean, empty model; it never copies the synthetic Aster figures.
 - **Screener.in workbook import:** detects a Data Sheet and maps supported annual financial items. Missing classifications remain missing; the importer does not invent zero values for undisclosed accounts payable or short-term debt.
 - **Historical review:** growth, margins, return ratios, liquidity, leverage, working capital and reported free cash flow where the required source fields exist.
@@ -34,6 +38,7 @@ git clone https://github.com/aman482006-beep/Automated-Financial-Modelling-Agent
 cd Automated-Financial-Modelling-Agent
 
 npm ci
+npm run prepare:sheetjs
 mkdir -p vendor
 cp node_modules/xlsx-js-style/dist/xlsx.bundle.js vendor/xlsx.bundle.js
 cp node_modules/jszip/dist/jszip.min.js vendor/jszip.min.js
@@ -43,13 +48,14 @@ python -m http.server 8000
 
 Open http://localhost:8000.
 
-The static front end uses local copies of its Excel and ZIP libraries when available. No Gemini, OpenAI, broker or market-data credential is needed. No live financial data provider is connected: you supply the financial statements and peer data. The bundled NSE directory is issuer metadata only; it does not contain statements, current prices or market-cap values.
+The static front end uses a SHA-512-verified SheetJS 0.20.3 reader from the official SheetJS CDN, alongside xlsx-js-style and JSZip for styled report generation and ZIP export. Uploads are bounded to 10 files, 20 MB per file and 40 MB per batch; spreadsheet imports inspect at most 30 worksheets and 10,000 rows per worksheet, and project backups are limited to 10 MB / 100 reporting periods. No Gemini, OpenAI, broker or market-data credential is needed. No live financial data provider is connected: you supply the financial statements and peer data. The bundled NSE directory is issuer metadata only; it does not contain statements, current prices or market-cap values.
 
 ## Test and verify
 
 Install the Chromium browser used by the end-to-end tests:
 
 ~~~bash
+npm run prepare:sheetjs
 npx playwright install chromium
 npm test
 ~~~
@@ -127,6 +133,12 @@ The Pages version works without any of those backend dependencies or credentials
 - tests/universe.test.cjs — NSE universe count, uniqueness and data-scope checks
 - tests/excel-recalc.test.cjs — LibreOffice formula recalculation test
 - .github/workflows/pages.yml — CI checks and GitHub Pages deployment
+
+## Contributing and security
+
+Contributions should preserve financial correctness, transparent assumptions and privacy. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Please report vulnerabilities privately using the process in [SECURITY.md](SECURITY.md), not in a public issue.
+
+Dependabot checks npm and GitHub Actions dependencies weekly. GitHub Actions runs CodeQL analysis on pushes, pull requests and a weekly schedule. These checks reduce risk but do not guarantee that the application is vulnerability-free.
 
 ## Licence
 

@@ -1,0 +1,32 @@
+name: Feature request
+description: Suggest a focused improvement to ModelForge
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What task is difficult or impossible today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the smallest useful version of the feature.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+  - type: textarea
+    id: financial_impact
+    attributes:
+      label: Financial-model and data impact
+      description: Could this affect formulas, data provenance, units, privacy or exports?
+    validations:
+      required: false
