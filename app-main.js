@@ -7,30 +7,97 @@ let project=normaliseProject(loadSaved()||E.defaultProject()),forecast=[],ratios
 const EMPTY_VALUATION={valid:false,errors:["Complete the required historical inputs before calculating valuation."],wacc:null,costEquity:null,equityWeight:null,debtWeight:null,flows:[],pvForecast:null,terminalValue:null,pvTerminal:null,enterpriseValue:null,netDebt:null,equityValue:null,perShare:null};
 
 function normaliseProject(p){
- p=p&&typeof p==="object"?p:{};
+ p=p&&typeof p==="object"&&!Array.isArray(p)?p:{};
  const today=String(new Date().getFullYear());
- p.profile={name:"",analyst:"Financial Analyst",industry:"",valuationDate:new Date().toISOString().slice(0,10),currency:"INR",unit:"millions",frequency:"Annual",sharesOutstanding:100,...(p.profile||{})};
- const old=p.history&&typeof p.history==="object"?p.history:{};
- let periods=Array.isArray(old.periods)?old.periods.map(x=>String(x).trim()).filter(Boolean):[];
+ const safeText=(value,fallback="",max=160)=>{
+  if(value===null||value===undefined)return fallback;
+  return String(value).replace(/[\\u0000-\\u001F\\u007F]/g," ").trim().slice(0,max);
+ };
+ const safeNumber=(value,fallback=null)=>{
+  if(value===null||value===undefined||value==="")return fallback;
+  const parsed=E.parseNumber(value);
+  return Number.isFinite(parsed)?parsed:fallback;
+ };
+ const sourceProfile=p.profile&&typeof p.profile==="object"&&!Array.isArray(p.profile)?p.profile:{};
+ p.profile={
+  name:safeText(sourceProfile.name,"",120),
+  analyst:safeText(sourceProfile.analyst,"Financial Analyst",80)||"Financial Analyst",
+  industry:safeText(sourceProfile.industry,"",100),
+  valuationDate:/^\\d{4}-\\d{2}-\\d{2}$/.test(String(sourceProfile.valuationDate||""))?sourceProfile.valuationDate:new Date().toISOString().slice(0,10),
+  currency:["INR","USD","EUR","GBP","SGD"].includes(sourceProfile.currency)?sourceProfile.currency:"INR",
+  unit:["millions","thousands","crores","actual"].includes(sourceProfile.unit)?sourceProfile.unit:"millions",
+  frequency:["Annual","Quarterly"].includes(sourceProfile.frequency)?sourceProfile.frequency:"Annual",
+  sharesOutstanding:safeNumber(sourceProfile.sharesOutstanding,100)
+ };
+ const old=p.history&&typeof p.history==="object"&&!Array.isArray(p.history)?p.history:{};
+ let periods=Array.isArray(old.periods)?old.periods.slice(0,100).map(x=>safeText(x,"",40)).filter(Boolean):[];
  periods=Array.from(new Set(periods));
  if(!periods.length)periods=[today];
  const history=E.blankHistory(periods);
  Object.keys(E.ITEMS).forEach(group=>E.ITEMS[group].forEach(([key])=>{
   const values=Array.isArray(old[group]?.[key])?old[group][key]:[];
-  history[group][key]=periods.map((_,i)=>values[i]??null);
+  history[group][key]=periods.map((_,i)=>safeNumber(values[i],null));
  }));
  p.history=history;
- if(!Array.isArray(p.history.IS.otherIncome))p.history.IS.otherIncome=periods.map(()=>0);
- p.assumptions={...E.clone(E.DEFAULT_ASSUMPTIONS),...(p.assumptions||{})};
- p.dcf={...E.clone(E.DEFAULT_DCF),...(p.dcf||{})};
- p.peers=Array.isArray(p.peers)?p.peers:E.clone(E.DEFAULT_PEERS);
- p.mapping=p.mapping&&typeof p.mapping==="object"?p.mapping:{};
- p.rawRecords=Array.isArray(p.rawRecords)?p.rawRecords:[];
- p.importMeta=p.importMeta&&typeof p.importMeta==="object"?p.importMeta:{};
- p.importMeta.sourceFiles=Array.isArray(p.importMeta.sourceFiles)?p.importMeta.sourceFiles:[];
- p.importMeta.sourceNotes=Array.isArray(p.importMeta.sourceNotes)?p.importMeta.sourceNotes:[];
- p.forecastYears=Number(p.forecastYears)||5;
- p.theme=p.theme||"light";
+ const rawAssumptions=p.assumptions&&typeof p.assumptions==="object"&&!Array.isArray(p.assumptions)?p.assumptions:{};
+ const rawDcf=p.dcf&&typeof p.dcf==="object"&&!Array.isArray(p.dcf)?p.dcf:{};
+ p.assumptions={...E.clone(E.DEFAULT_ASSUMPTIONS),...rawAssumptions};
+ p.dcf={...E.clone(E.DEFAULT_DCF),...rawDcf};
+ const inputPeers=Array.isArray(p.peers)?p.peers.slice(0,100):E.clone(E.DEFAULT_PEERS);
+ const peerKeys=["ev","revenue","ebitda","ebit","netIncome","marketCap","bookEquity"];
+ p.peers=inputPeers.map((candidate,i)=>{
+  const peer=candidate&&typeof candidate==="object"&&!Array.isArray(candidate)?candidate:{};
+  const defaults=E.DEFAULT_PEERS[i]||{};
+  const clean={name:safeText(peer.name,defaults.name||("Peer "+(i+1)),120),synthetic:peer.synthetic===true};
+  peerKeys.forEach(key=>{clean[key]=safeNumber(peer[key],defaults[key]??null);});
+  return clean;
+ });
+ const sourceMapping=p.mapping&&typeof p.mapping==="object"&&!Array.isArray(p.mapping)?p.mapping:{};
+ const mapping=Object.create(null);
+ Object.entries(sourceMapping).slice(0,1000).forEach(([label,value])=>{
+  const key=safeText(label,"",200);
+  if(!key||typeof value!=="string")return;
+  if(value==="ignore"){mapping[key]="ignore";return;}
+  const parts=value.split(".");
+  if(parts.length===2&&Object.hasOwn(E.ITEMS,parts[0])&&E.ITEMS[parts[0]].some(([item])=>item===parts[1]))mapping[key]=value;
+ });
+ p.mapping=mapping;
+ const inputRecords=Array.isArray(p.rawRecords)?p.rawRecords.slice(0,MAX_IMPORT_RECORDS):[];
+ p.rawRecords=inputRecords.map(row=>{
+  if(!row||typeof row!=="object"||Array.isArray(row))return null;
+  const clean={
+   period:safeText(row.period,"",40),
+   label:safeText(row.label,"",200),
+   value:safeNumber(row.value,null),
+   statement:safeText(row.statement,"",100)
+  };
+  if(typeof row.mapped==="string")clean.mapped=row.mapped.slice(0,80);
+  return clean.period&&clean.label&&clean.value!==null?clean:null;
+ }).filter(Boolean);
+ const meta=p.importMeta&&typeof p.importMeta==="object"&&!Array.isArray(p.importMeta)?p.importMeta:{};
+ p.importMeta={
+  source:safeText(meta.source,"",120),
+  sourceFiles:Array.isArray(meta.sourceFiles)?meta.sourceFiles.slice(0,MAX_IMPORT_FILES).map(x=>safeText(x,"",180)).filter(Boolean):[],
+  importedAt:safeText(meta.importedAt,"",40),
+  currentPrice:safeNumber(meta.currentPrice,null),
+  marketCapCrores:safeNumber(meta.marketCapCrores,null),
+  sharesOutstandingCrores:safeNumber(meta.sharesOutstandingCrores,null),
+  latestPeriod:safeText(meta.latestPeriod,"",40),
+  latestDate:safeText(meta.latestDate,"",20),
+  sourceNotes:Array.isArray(meta.sourceNotes)?meta.sourceNotes.slice(0,100).map(x=>safeText(x,"",500)).filter(Boolean):[]
+ };
+ if(p.security&&typeof p.security==="object"&&!Array.isArray(p.security)){
+  p.security={
+   name:safeText(p.security.name,"",120),
+   symbol:safeText(p.security.symbol,"",30),
+   sector:safeText(p.security.sector,"",100),
+   universeIndex:safeText(p.security.universeIndex,"",40),
+   asOf:safeText(p.security.asOf,"",20)
+  };
+ }else delete p.security;
+ const requestedYears=Number(p.forecastYears);
+ p.forecastYears=Number.isInteger(requestedYears)?Math.max(1,Math.min(10,requestedYears)):5;
+ p.theme=["light","navy","midnight","emerald","graphite","warm"].includes(p.theme)?p.theme:"light";
  return p;
 }
 function loadSaved(){try{const p=JSON.parse(localStorage.getItem(KEY)||"null");return p&&p.profile&&p.history?normaliseProject(p):null}catch(e){return null}}
@@ -88,7 +155,7 @@ function renderValidation(){
 }
 function renderHistoryEditor(){
  const g=$("#historyStatement").value,h=project.history,items=E.ITEMS[g],years=h.periods;
- $("#historyEditor").innerHTML="<thead><tr><th>Line item</th>"+years.map(y=>"<th>"+esc(y)+"</th>").join("")+"</tr></thead><tbody>"+items.map(([k,label])=>"<tr><td>"+esc(label)+"</td>"+years.map((y,i)=>'<td><input type="number" step="any" data-hist-group="'+g+'" data-hist-key="'+k+'" data-hist-index="'+i+'" value="'+(h[g][k][i]===null?"":h[g][k][i])+'"></td>').join("")+"</tr>").join("")+"</tbody>";
+ $("#historyEditor").innerHTML="<thead><tr><th>Line item</th>"+years.map(y=>"<th>"+esc(y)+"</th>").join("")+"</tr></thead><tbody>"+items.map(([k,label])=>"<tr><td>"+esc(label)+"</td>"+years.map((y,i)=>'<td><input type="number" step="any" data-hist-group="'+g+'" data-hist-key="'+k+'" data-hist-index="'+i+'" value="'+esc(h[g][k][i]===null?"":h[g][k][i])+'"></td>').join("")+"</tr>").join("")+"</tbody>";
 }
 function renderHistory(){
  const r=ratios,h=project.history,first=r[0]||{},last=r.at(-1)||{},cagr=r.length>1&&n(h.IS.revenue[0])>0?Math.pow(n(h.IS.revenue.at(-1))/n(h.IS.revenue[0]),1/(r.length-1))-1:null;
@@ -143,7 +210,7 @@ function renderDCF(){
 function peerStats(){return E.peerStatistics(project.peers)}
 function renderPeers(){
  const fields=[["ev","EV"],["revenue","Revenue"],["ebitda","EBITDA"],["ebit","EBIT"],["netIncome","Net income"],["marketCap","Market cap"],["bookEquity","Book equity"]];
- $("#peerTable").innerHTML="<thead><tr><th>Company / status</th>"+fields.map(x=>"<th>"+x[1]+"</th>").join("")+"<th></th></tr></thead><tbody>"+project.peers.map((p,i)=>'<tr><td><input class="peer-input" data-peer="'+i+'" data-peer-key="name" value="'+esc(p.name)+'"></td>'+fields.map(([k])=>'<td><input type="number" step="any" class="peer-input" data-peer="'+i+'" data-peer-key="'+k+'" value="'+(p[k]??"")+'"></td>').join("")+'<td><button type="button" class="text-link" data-remove-peer="'+i+'">Remove</button></td></tr>').join("")+"</tbody>";
+ $("#peerTable").innerHTML="<thead><tr><th>Company / status</th>"+fields.map(x=>"<th>"+x[1]+"</th>").join("")+"<th></th></tr></thead><tbody>"+project.peers.map((p,i)=>'<tr><td><input class="peer-input" data-peer="'+i+'" data-peer-key="name" value="'+esc(p.name)+'"></td>'+fields.map(([k])=>'<td><input type="number" step="any" class="peer-input" data-peer="'+i+'" data-peer-key="'+k+'" value="'+esc(p[k]??"")+'"></td>').join("")+'<td><button type="button" class="text-link" data-remove-peer="'+i+'">Remove</button></td></tr>').join("")+"</tbody>";
  const s=peerStats(),stats=[["EV / Revenue","evRevenue"],["EV / EBITDA","evEbitda"],["EV / EBIT","evEbit"],["P / E","pe"],["P / Book","pb"]];
  $("#peerStats").innerHTML="<thead><tr><th>Multiple</th><th>Median</th><th>Average</th><th>Valid peers</th></tr></thead><tbody>"+stats.map(([l,k])=>"<tr><td>"+l+"</td><td>"+(s[k].median?fmt(s[k].median,2)+"x":"—")+"</td><td>"+(s[k].average?fmt(s[k].average,2)+"x":"—")+"</td><td>"+s[k].count+"</td></tr>").join("")+"</tbody>";
  const rev=getLatest("IS","revenue")||0,ebitda=getLatest("IS","ebitda")||0,ebit=getLatest("IS","ebit")||0;
