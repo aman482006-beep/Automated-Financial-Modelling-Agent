@@ -55,6 +55,7 @@ The static front end uses a SHA-512-verified SheetJS 0.20.3 reader from the offi
 Install the Chromium browser used by the end-to-end tests:
 
 ~~~bash
+npm run prepare:sheetjs
 npx playwright install chromium
 npm test
 ~~~
