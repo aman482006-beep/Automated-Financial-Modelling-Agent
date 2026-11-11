@@ -239,9 +239,7 @@ function selectUniverseCompany(symbol){
  $("#companyUniverseNotice")?.scrollIntoView({behavior:"smooth",block:"center"});toast(company.name+" selected. Upload its verified financials to populate the model.");
 }
 
-function parseCsv(txt){
- const lines=txt.replace(/^\uFEFF/,"").split(/\r?\n/).filter(x=>x.trim()),parse=line=>{let arr=[],v="",q=false;for(let i=0;i<line.length;i++){let ch=line[i];if(ch==='"'&&line[i+1]==='"'&&q){v+='"';i++}else if(ch==='"')q=!q;else if(ch===","&&!q){arr.push(v);v=""}else v+=ch}arr.push(v);return arr};if(!lines.length)return [];const heads=parse(lines[0]).map(x=>x.trim());return lines.slice(1).map(l=>{const values=parse(l),obj={};heads.forEach((k,i)=>obj[k]=values[i]??"");return obj});
-}
+function parseCsv(txt){return E.parseCsv(txt)}
 function renderMapping(){
  const labels=Array.from(new Set((project.rawRecords||[]).map(r=>r.label)));
  if(!labels.length){$("#mappingTable").innerHTML='<tbody><tr><td>No source labels imported yet. Load sample statements or upload CSV / Excel files.</td></tr></tbody>';return}
@@ -313,6 +311,10 @@ async function fileArrayBuffer(file){
 async function importStatements(files){
  window.ModelForgeLastImportNotes=[];
  if(!files.length)return;
+ if(files.length>MAX_IMPORT_FILES)throw new Error("Upload no more than "+MAX_IMPORT_FILES+" files at once.");
+ const totalBytes=files.reduce((sum,file)=>sum+(Number(file.size)||0),0);
+ if(files.some(file=>(Number(file.size)||0)>MAX_IMPORT_FILE_BYTES))throw new Error("Each CSV or Excel file must be 20 MB or smaller.");
+ if(totalBytes>MAX_TOTAL_IMPORT_BYTES)throw new Error("The combined upload size must be 40 MB or smaller.");
  setImportStatus("Reading "+files.length+" file(s) and detecting the statement layout…");
  let records=[],screenerImport=null,filesLoaded=0;
  for(const file of files){
@@ -348,6 +350,7 @@ async function importStatements(files){
    }
    filesLoaded++;
   }else throw new Error("Unsupported file type: "+file.name+". Upload a .csv, .xlsx or .xls file.");
+  if(records.length>MAX_IMPORT_RECORDS)throw new Error("The selected files contain more than "+MAX_IMPORT_RECORDS+" financial records. Split the statements into smaller imports.");
  }
  if(!records.length)throw new Error("No financial values were found in "+files.map(f=>f.name).join(", ")+". For Screener.in exports, keep the Data Sheet content intact. Other workbooks need Period/Year and line-item headers, or Period, Statement, Item and Value columns.");
  if(screenerImport){
@@ -446,7 +449,7 @@ async function loadProjectFile(file){
   try{
    if(!file)return;
    if(file.size>MAX_PROJECT_FILE_BYTES)throw new Error("Project backups must be 10 MB or smaller.");
-   if(!/\\.json$/i.test(file.name))throw new Error("Choose a ModelForge .json project backup.");
+   if(!String(file.name||"").toLowerCase().endsWith(".json"))throw new Error("Choose a ModelForge .json project backup.");
    const p=JSON.parse(await file.text());
    if(!p?.profile||!p?.history||!Array.isArray(p.history.periods))throw new Error("Not a valid ModelForge project file.");
    if(p.history.periods.length>100)throw new Error("Project backups may contain no more than 100 historical periods.");
