@@ -11,7 +11,7 @@ function normaliseProject(p){
  const today=String(new Date().getFullYear());
  const safeText=(value,fallback="",max=160)=>{
   if(value===null||value===undefined)return fallback;
-  return String(value).replace(/[\u0000-\u001F\u007F]/g," ").trim().slice(0,max);
+  return String(value).replace(/[\u0000-\u001F\u007F]/g," ").replace(/\s+/g," ").trim().slice(0,max);
  };
  const safeNumber=(value,fallback=null)=>{
   if(value===null||value===undefined||value==="")return fallback;
