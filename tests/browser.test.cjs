@@ -297,6 +297,8 @@ test("malicious project backup values are normalised and cannot inject HTML attr
       const project = JSON.parse(JSON.stringify(window.ModelForge.getProject()));
       project.history.IS.revenue[0] = '" autofocus onfocus="window.__modelForgeInjected=true';
       project.peers[0].revenue = '" autofocus onfocus="window.__modelForgeInjected=true';
+      project.dcf.exitMultiple = '" autofocus onfocus="window.__modelForgeInjected=true';
+      project.assumptions.revenueGrowth = '" autofocus onfocus="window.__modelForgeInjected=true';
       project.rawRecords = [null, { period: "2025", label: "Revenue", value: 100 }];
       return JSON.stringify(project);
     });
@@ -310,11 +312,15 @@ test("malicious project backup values are normalised and cannot inject HTML attr
       injected: window.__modelForgeInjected === true,
       historyValue: window.ModelForge.getProject().history.IS.revenue[0],
       peerValue: window.ModelForge.getProject().peers[0].revenue,
-      injectedElements: document.querySelectorAll("#historyEditor [onfocus], #peerTable [onfocus], #historyEditor img, #peerTable img").length,
+      dcfValue: window.ModelForge.getProject().dcf.exitMultiple,
+      assumptionValue: window.ModelForge.getProject().assumptions.revenueGrowth,
+      injectedElements: document.querySelectorAll("#historyEditor [onfocus], #peerTable [onfocus], #terminalInputs [onfocus], #historyEditor img, #peerTable img, #terminalInputs img").length,
     }));
     assert.equal(result.injected, false);
     assert.equal(result.historyValue, null);
     assert.equal(result.peerValue, null);
+    assert.equal(result.dcfValue, 9);
+    assert.equal(result.assumptionValue, 0.1);
     assert.equal(result.injectedElements, 0);
     assert.deepEqual(pageErrors, []);
   } finally {
