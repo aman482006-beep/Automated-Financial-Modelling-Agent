@@ -2,7 +2,7 @@
 
 [![CI and GitHub Pages](https://github.com/aman482006-beep/Automated-Financial-Modelling-Agent/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/aman482006-beep/Automated-Financial-Modelling-Agent/actions/workflows/pages.yml) [![Security analysis](https://github.com/aman482006-beep/Automated-Financial-Modelling-Agent/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/aman482006-beep/Automated-Financial-Modelling-Agent/actions/workflows/security.yml) [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
-**[Try the live ModelForge workspace](https://aman482006-beep.github.io/Automated-Financial-Modelling-Agent/)** · [Contributing](CONTRIBUTING.md) · [Support](SUPPORT.md) · [Security](SECURITY.md) · [Roadmap](docs/ROADMAP.md) · [Changelog](CHANGELOG.md)
+**[Try the live ModelForge workspace](https://aman482006-beep.github.io/Automated-Financial-Modelling-Agent/)** · [Contributing](CONTRIBUTING.md) · [Support](SUPPORT.md) · [Security](SECURITY.md) · [Roadmap](docs/ROADMAP.md) · [Changelog](CHANGELOG.md) · [Quick start](docs/QUICKSTART.md)
 
 ModelForge is a static, browser-based financial modelling application for importing historical statements, reviewing data quality, building an integrated forecast, calculating DCF and trading-comparable valuations, exploring sensitivities, and exporting a formula-linked Excel workbook.
 
