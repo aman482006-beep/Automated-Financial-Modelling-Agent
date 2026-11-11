@@ -43,7 +43,7 @@ python -m http.server 8000
 
 Open http://localhost:8000.
 
-The static front end uses local copies of its Excel and ZIP libraries when available. No Gemini, OpenAI, broker or market-data credential is needed. No live financial data provider is connected: you supply the financial statements and peer data. The bundled NSE directory is issuer metadata only; it does not contain statements, current prices or market-cap values.
+The static front end uses local copies of its Excel and ZIP libraries when available. Uploads are bounded to 10 files, 20 MB per file and 40 MB per batch; spreadsheet imports inspect at most 30 worksheets and 10,000 rows per worksheet, and project backups are limited to 10 MB / 100 reporting periods. No Gemini, OpenAI, broker or market-data credential is needed. No live financial data provider is connected: you supply the financial statements and peer data. The bundled NSE directory is issuer metadata only; it does not contain statements, current prices or market-cap values.
 
 ## Test and verify
 
