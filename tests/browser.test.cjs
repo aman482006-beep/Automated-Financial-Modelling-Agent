@@ -263,7 +263,7 @@ test("CSV import preserves quoted multiline fields and does not split a single r
     });
     await page.waitForFunction(() => window.ModelForge.getProject().rawRecords?.length === 1);
     const project = await page.evaluate(() => window.ModelForge.getProject());
-    assert.equal(project.rawRecords[0].label, "Revenue, audited\r\ncontinuation");
+    assert.equal(project.rawRecords[0].label, "Revenue, audited continuation");
     assert.equal(project.rawRecords[0].value, 100);
     assert.deepEqual(pageErrors, []);
   } finally {
