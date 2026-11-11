@@ -76,6 +76,7 @@ function parseNumber(value){
 
 function parseCsv(text,options={}){
  if(typeof text!=="string")throw new Error("CSV content must be text.");
+ options=options&&typeof options==="object"?options:{};
  const maxRows=Number.isInteger(options.maxRows)?options.maxRows:100000;
  const maxColumns=Number.isInteger(options.maxColumns)?options.maxColumns:1000;
  const maxFieldLength=Number.isInteger(options.maxFieldLength)?options.maxFieldLength:1000000;
