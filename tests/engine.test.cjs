@@ -30,6 +30,21 @@ test("historical revenue growth and margin calculations are correct", () => {
   assert.ok(Math.abs(r[4].ebitdaMargin-(448/1996))<1e-10);
 });
 
+test("ROCE uses average capital employed, including average interest-bearing debt", () => {
+  const p=E.defaultProject(), ratios=E.historicalRatios(p.history);
+  const h=p.history;
+  for(let i=1;i<h.periods.length;i++){
+    const equity=(h.BS.equity[i]+h.BS.equity[i-1])/2;
+    const debtNow=h.BS.shortDebt[i]+h.BS.longDebt[i];
+    const debtPrior=h.BS.shortDebt[i-1]+h.BS.longDebt[i-1];
+    const averageCapital=equity+(debtNow+debtPrior)/2;
+    const ebit=h.IS.ebit[i];
+    assert.ok(Math.abs(ratios[i].roce-ebit/averageCapital)<1e-10);
+  }
+  const firstCapital=h.BS.equity[0]+h.BS.shortDebt[0]+h.BS.longDebt[0];
+  assert.ok(Math.abs(ratios[0].roce-h.IS.ebit[0]/firstCapital)<1e-10);
+});
+
 test("forecast horizon is adjustable and all three statements link", () => {
   const p=E.defaultProject();
   const f=E.buildForecast(p.history,p.assumptions,5);
