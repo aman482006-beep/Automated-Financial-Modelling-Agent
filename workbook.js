@@ -5,7 +5,7 @@ const E=root.ModelEngine;
 function col(n){let s="";while(n>0){let r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26)}return s}
 function ref(c,r){return col(c)+r}
 function q(sheet){return "'"+sheet.replace(/'/g,"''")+"'"}
-function fcell(ws,cell,formula,value){const raw=String(formula??"");const hasCache=value!==null&&value!==undefined&&value!=="";const cached=hasCache?value:0;const type=typeof cached==="string"?"str":typeof cached==="boolean"?"b":"n";const cellValue={t:type,f:raw.startsWith("=")?raw.slice(1):raw};if(hasCache)cellValue.v=type==="n"?(Number.isFinite(cached)?cached:0):cached;ws[cell]=cellValue;}
+function fcell(ws,cell,formula,value){const raw=String(formula??"");const hasCache=value!==null&&value!==undefined&&value!==""&&!(typeof value==="number"&&!Number.isFinite(value));const cached=hasCache?value:0;const type=typeof cached==="string"?"str":typeof cached==="boolean"?"b":"n";const cellValue={t:type,f:raw.startsWith("=")?raw.slice(1):raw};if(hasCache)cellValue.v=type==="n"?(Number.isFinite(cached)?cached:0):cached;ws[cell]=cellValue;}
 function setStyle(ws,cell,style){if(ws[cell])ws[cell].s=style}
 function setFormat(ws,cell,format){if(!ws[cell])return;const formats={"0.0%":"0.0%;[Red](0.0%);-","0.00x":"0.00x;[Red](0.00x);-","0.0x":"0.0x;[Red](0.0x);-","0.000":"0.000;[Red](0.000);-"};ws[cell].z=formats[format]||format;}
 function extendRef(ws,lastRow,lastCol){const range=ws["!ref"]?X.utils.decode_range(ws["!ref"]):{s:{r:0,c:0},e:{r:0,c:0}};range.e.r=Math.max(range.e.r,lastRow-1);range.e.c=Math.max(range.e.c,lastCol-1);ws["!ref"]=X.utils.encode_range(range);}
