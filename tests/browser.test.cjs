@@ -197,6 +197,10 @@ test("existing-company picker loads exactly 100 or 200 NSE constituents without 
     const project = await page.evaluate(() => window.ModelForge.getProject());
     assert.equal(project.profile.name, "Reliance Industries Ltd.");
     assert.equal(project.profile.symbol, "RELIANCE");
+    assert.equal(project.profile.sharesOutstanding, null);
+    for (const key of ["riskFreeRate","equityRiskPremium","beta","costOfDebt","equityMarketValue","debtMarketValue","sharesOutstanding","perpetualGrowth","exitMultiple"]) {
+      assert.equal(project.dcf[key], null, "A real-company selection must not inherit demo DCF input " + key);
+    }
     assert.deepEqual(project.history.periods.length, 1);
     assert.equal(project.history.IS.revenue[0], null, "a real company must never inherit Aster demo financials");
     assert.match(project.importMeta.sourceNotes.join(" "), /No financial values.*fabricated or prefilled/);
@@ -238,6 +242,10 @@ test("Load opens the file picker and imports multi-sheet Excel after title rows"
       cash: window.ModelForge.getProject().history.BS.cash,
       capex: window.ModelForge.getProject().history.CF.capex,
       fcf: window.ModelForge.getProject().history.CF.fcf,
+      profile: window.ModelForge.getProject().profile,
+      assumptions: window.ModelForge.getProject().assumptions,
+      dcf: window.ModelForge.getProject().dcf,
+      valuationValid: window.ModelForge.getValuation().valid,
       readiness: window.ModelForge.getProject().history.BS.totalAssets[1] - window.ModelForge.getProject().history.BS.totalLiabEquity[1]
     }));
     assert.deepEqual(project.periods, ["2024","2025"]);
@@ -246,6 +254,45 @@ test("Load opens the file picker and imports multi-sheet Excel after title rows"
     assert.deepEqual(project.capex, [-60,-65]);
     assert.deepEqual(project.fcf, [120,135]);
     assert.equal(project.readiness, 0);
+    assert.equal(project.profile.sharesOutstanding, null, "An uploaded workbook without a share count must not use a demo share count.");
+    assert.equal(project.assumptions.daysPerYear, 365);
+    assert.ok(Math.abs(project.assumptions.revenueGrowth - 0.1) < 1e-10, "Revenue growth should be seeded from the two uploaded years.");
+    assert.ok(Math.abs(project.assumptions.grossMargin - 530/1100) < 1e-10, "Gross margin should use the reported historical gross profit.");
+    assert.ok(Math.abs(project.assumptions.capexPct - 65/1100) < 1e-10, "Capex should be seeded only from the distinct capex line.");
+    assert.equal(project.assumptions.annualDebtRepayment, 0, "Debt repayment should not be assumed from a generic default.");
+    assert.equal(project.assumptions.dividendPayout, 0, "Dividends should not be assumed from a generic default.");
+    for (const key of ["riskFreeRate","equityRiskPremium","beta","equityMarketValue","debtMarketValue","sharesOutstanding","perpetualGrowth","exitMultiple"]) {
+      assert.equal(project.dcf[key], null, "Unsourced DCF input must remain blank: " + key);
+    }
+    assert.equal(project.valuationValid, false, "Imported historical data alone must not create an unsourced DCF.");
+    await page.locator('#nav [data-page="data"]').click();
+    await page.locator("#shares").fill("100");
+    await page.locator("#shares").dispatchEvent("change");
+    const waccInputs = [
+      ["riskFreeRate","7"],["equityRiskPremium","6"],["beta","1"],["costOfDebt","8"],
+      ["equityMarketValue","1000"],["debtMarketValue","200"]
+    ];
+    for (const [key,value] of waccInputs) {
+      const input=page.locator('[data-dcf="'+key+'"]');
+      await input.fill(value);
+      await input.dispatchEvent("change");
+    }
+    await page.locator("#terminalValueInput").fill("4");
+    await page.locator("#terminalValueInput").dispatchEvent("change");
+    await page.locator('#nav [data-page="dcf"]').click();
+    const completed = await page.evaluate(() => ({
+      valid: window.ModelForge.getValuation().valid,
+      enterpriseValue: window.ModelForge.getValuation().enterpriseValue,
+      perShare: window.ModelForge.getValuation().perShare,
+      forecastYears: window.ModelForge.getForecast().length,
+      checks: window.ModelForge.getForecast().map(x=>x.check)
+    }));
+    assert.equal(completed.valid, true, "A complete source-backed sample with analyst-entered DCF assumptions should calculate.");
+    assert.ok(Number.isFinite(completed.enterpriseValue) && completed.enterpriseValue > 0);
+    assert.ok(Number.isFinite(completed.perShare) && completed.perShare > 0);
+    assert.equal(completed.forecastYears, 5);
+    assert.ok(completed.checks.every(value => Math.abs(value) < 0.01), "The linked forecast balance sheets must balance.");
+    assert.notEqual((await page.locator("#dcfEV").innerText()).trim(), "—");
     assert.deepEqual(pageErrors, []);
   } finally {
     await page.close();
