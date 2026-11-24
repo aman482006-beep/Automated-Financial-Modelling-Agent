@@ -370,7 +370,7 @@ function seedAssumptionsFromImportedHistory(p,meta){
   const templateDrivers=requiredDrivers.filter(key=>!seeded.has(key));
   if(templateDrivers.length)p.importMeta.sourceNotes.push("Template starting assumptions remain for these forecast drivers because the upload did not provide enough history to derive them: "+templateDrivers.join(", ")+". Replace them with sourced figures or a documented operating case before relying on the forecast.");
   const zeroPolicyDefaults=[["annualDebtRepayment","annual debt repayment"],["dividendPayout","dividend payout"]].filter(([key])=>!seeded.has(key)).map(([,label])=>label);
-  if(zeroPolicyDefaults.length)p.importMeta.sourceNotes.push(zeroPolicyDefaults.join(" and ")+" are set to zero pending a sourced debt maturity schedule and dividend policy; these are not inferred from the balance sheet.");
+  if(zeroPolicyDefaults.length){const policyLabel=zeroPolicyDefaults.join(" and ");p.importMeta.sourceNotes.push(policyLabel.charAt(0).toUpperCase()+policyLabel.slice(1)+(zeroPolicyDefaults.length===1?" is":" are")+" set to zero pending a sourced debt maturity schedule and dividend policy; these are not inferred from the balance sheet.");}
  }
  return p;
 }
