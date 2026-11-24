@@ -20,6 +20,7 @@ New to the project? Follow the [10–15 minute user-testing guide](docs/USER_TES
 
 - **Financial data intake:** CSV and Excel import, multiple worksheets, wide/long layouts, manual entry, editable field mapping and source metadata. User-uploaded workbooks are parsed with the patched SheetJS CE 0.20.3 reader; the legacy style-enabled library is isolated to report generation.
 - **Indian company picker:** bundled NSE Nifty 100 / Nifty 200 issuer directory (200 unique securities, 100 Nifty 100 members; snapshot checked 6 Nov 2026), with searchable names, NSE symbols and sectors. Selecting a company creates a clean, empty model; it never copies the synthetic Aster figures.
+  - [Download the 200-company NSE directory (CSV)](sample-data/nse_nifty200_universe.csv). It includes company name, NSE symbol, sector and Nifty 100 / Nifty 200 membership flags only; it is not a market-data or financial-statement file.
 - **Screener.in workbook import:** detects a Data Sheet and maps supported annual financial items. Missing classifications remain missing; the importer does not invent zero values for undisclosed accounts payable or short-term debt.
 - **Historical review:** growth, margins, return ratios, liquidity, leverage, working capital and reported free cash flow where the required source fields exist.
 - **Data validation:** statement completeness, balance-sheet reconciliation, cash-flow bridges, statement subtotals and reporting-period order.
@@ -90,6 +91,9 @@ ModelForge deliberately prefers **missing data over invented zeroes**.
 - Total investing cash flow is not treated as capital expenditure. Historical FCF is reported only when explicitly supplied or derived from CFO and a separate capex field.
 - Forecasting is gated to complete annual opening balance-sheet inputs. Quarterly periods are rejected rather than silently annualised.
 - Invalid WACC, terminal growth, terminal multiple, tax rate or share-count inputs prevent a DCF result. Review the readiness and validation messages before exporting.
+- Real-company selections and imported financial statements do not inherit Aster demo share counts or DCF inputs. Forecast operating drivers are seeded from available reported history where possible; unavailable capex remains an explicitly disclosed starting assumption, and unsourced WACC / terminal inputs remain blank.
+- The generic operating template blocks bank, insurer and financial-services forecasts; those companies need a sector-specific model rather than industrial working-capital and debt logic.
+- Workbook inputs use blue font/fill, same-sheet formulas use black, and formulas linked across worksheets use green. Forecast, FCF, DCF, comparables, sensitivity and checks are separate worksheets; working-capital days link to one editable day-count convention.
 
 See [docs/formulas.md](docs/formulas.md) for calculation definitions and assumptions.
 
