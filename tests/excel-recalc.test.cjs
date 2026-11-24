@@ -24,6 +24,7 @@ test("LibreOffice recalculates exported Excel formulas to the engine's DCF resul
 }, () => {
   const binary = findLibreOffice();
   const project = E.defaultProject();
+  project.dcf.perpetualGrowth = 0.09;
   const forecast = E.buildForecast(project.history, project.assumptions, project.forecastYears);
   const ratios = E.historicalRatios(project.history);
   const valuation = E.calculateDCF(forecast, project.history, project.dcf, project.assumptions);
@@ -64,6 +65,8 @@ test("LibreOffice recalculates exported Excel formulas to the engine's DCF resul
     assert.equal(typeof dcf.B18.f, "string", "enterprise value remains formula-linked");
     assert.ok(Number.isFinite(dcf.B18.v), "enterprise value formula must calculate to a number");
     assert.ok(Number.isFinite(dcf.B3.v), "WACC formula must calculate to a number");
+    assert.equal(recalculated.Sheets.Ratios.B4.t, "e", "A missing first-period growth ratio should recalculate as #N/A, not zero.");
+    assert.equal(recalculated.Sheets.Sensitivity.F5.t, "e", "An invalid WACC / terminal-growth sensitivity case should recalculate as #N/A, not zero.");
 
     const tolerance = Math.max(0.01, Math.abs(valuation.enterpriseValue) * 1e-6);
     assert.ok(
