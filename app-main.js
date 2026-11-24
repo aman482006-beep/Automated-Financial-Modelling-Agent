@@ -480,7 +480,7 @@ async function importStatements(files){
   if(selectedSecurity&&project.importMeta.sourceNotes.length<100)project.importMeta.sourceNotes.push("Uploaded figures have not been independently authenticated as belonging to the selected NSE issuer.");
   renderAssumptions();renderWACC();renderTerminal();
  }
- renderMapping();renderManualEntry();rebuild();persist();
+ syncProfile();renderMapping();renderManualEntry();rebuild();persist();
  const unmapped=Array.from(new Set(records.map(r=>r.label))).filter(label=>!project.mapping[label]||project.mapping[label]==="ignore");
  const periodCount=project.history.periods.length,company=project.profile.name||"uploaded company";
  const note=screenerImport?(screenerImport.sourceNotes||[]).join(" "):"";
