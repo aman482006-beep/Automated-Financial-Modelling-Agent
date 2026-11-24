@@ -11,6 +11,7 @@ All amounts use the selected reporting unit. Percentage drivers are decimals int
 - Net margin = net income / revenue.
 - ROE = net income / average shareholders' equity (first available period uses closing equity).
 - ROA = net income / average total assets (first available period uses closing assets).
+- ROCE = EBIT / average capital employed, where capital employed is shareholders’ equity plus short- and long-term interest-bearing debt (first available period uses closing capital employed).
 - Current ratio = current assets / current liabilities, only when all required current-asset and current-liability components are present.
 - Quick ratio = (cash + accounts receivable) / current liabilities, only when all three inputs are present.
 - Debt/equity = (short-term debt + long-term debt) / equity, only when both debt buckets and equity are present.
