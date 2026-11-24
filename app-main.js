@@ -200,13 +200,13 @@ function renderForecast(){
 function renderWACC(){
  const defs=[["riskFreeRate","Risk-free rate","%"],["equityRiskPremium","Equity risk premium","%"],["beta","Levered beta","x"],["costOfDebt","Pre-tax cost of debt","%"],["equityMarketValue","Market value of equity",project.profile.unit],["debtMarketValue","Market value of debt",project.profile.unit]];
  const pctKeys=new Set(["riskFreeRate","equityRiskPremium","costOfDebt"]);
- $("#waccInputs").innerHTML=defs.map(([k,label,u])=>'<label>'+label+'<input type="number" step="any" data-dcf="'+k+'" value="'+esc(n(project.dcf[k])*(pctKeys.has(k)?100:1))+'"><small>'+u+'</small></label>').join("");
+ $("#waccInputs").innerHTML=defs.map(([k,label,u])=>'<label>'+label+'<input type="number" step="any" data-dcf="'+k+'" value="'+esc(project.dcf[k]===null||project.dcf[k]===undefined?"":n(project.dcf[k])*(pctKeys.has(k)?100:1))+'"><small>'+u+'</small></label>').join("");
  $$("[data-dcf]").forEach(el=>el.addEventListener("change",()=>{const k=el.dataset.dcf;project.dcf[k]=n(el.value)/(pctKeys.has(k)?100:1);rebuild();persist()}));
 }
 function renderTerminal(){
  $$("[name=terminalMethod]").forEach(el=>el.checked=el.value===project.dcf.terminalMethod);
  const g=project.dcf.terminalMethod==="growth";
- $("#terminalInputs").innerHTML=g?'<label>Perpetual growth rate (%)<input id="terminalValueInput" type="number" step=".1" value="'+esc(project.dcf.perpetualGrowth*100)+'"></label>':'<label>Exit EBITDA multiple (x)<input id="terminalValueInput" type="number" step=".1" value="'+esc(project.dcf.exitMultiple)+'"></label>';
+ $("#terminalInputs").innerHTML=g?'<label>Perpetual growth rate (%)<input id="terminalValueInput" type="number" step=".1" value="'+esc(project.dcf.perpetualGrowth===null||project.dcf.perpetualGrowth===undefined?"":project.dcf.perpetualGrowth*100)+'"></label>':'<label>Exit EBITDA multiple (x)<input id="terminalValueInput" type="number" step=".1" value="'+esc(project.dcf.exitMultiple===null||project.dcf.exitMultiple===undefined?"":project.dcf.exitMultiple)+'"></label>';
  $("#terminalValueInput").addEventListener("change",e=>{if(g)project.dcf.perpetualGrowth=n(e.target.value)/100;else project.dcf.exitMultiple=n(e.target.value);rebuild();persist()});
 }
 function renderDCF(){
@@ -313,7 +313,7 @@ function selectUniverseCompany(symbol){
  const company=window.ModelForgeUniverse?.companies?.find(x=>x.symbol===symbol);if(!company){toast("Company not found in the bundled NSE directory.");return;}
  const analyst=project.profile?.analyst||"Financial Analyst",p=E.defaultProject();
  p.profile={...p.profile,name:company.name,analyst,industry:company.sector,valuationDate:new Date().toISOString().slice(0,10),currency:"INR",unit:"crores",frequency:"Annual",sharesOutstanding:null,symbol:company.symbol,exchange:"NSE"};
- p.history=E.blankHistory(["FY"+new Date().getFullYear()]);p.peers=[];p.rawRecords=[];p.mapping={};p.dcf={...p.dcf,equityMarketValue:null,debtMarketValue:null,sharesOutstanding:null};
+ p.history=E.blankHistory(["FY"+new Date().getFullYear()]);p.peers=[];p.rawRecords=[];p.mapping={};p.dcf={...p.dcf,riskFreeRate:null,equityRiskPremium:null,beta:null,costOfDebt:null,equityMarketValue:null,debtMarketValue:null,sharesOutstanding:null,perpetualGrowth:null,exitMultiple:null};
  p.security={name:company.name,symbol:company.symbol,sector:company.sector,exchange:"NSE",universeIndex:company.nifty100?"Nifty 100":"Nifty 200",nifty100:company.nifty100,asOf:window.ModelForgeUniverse.asOf};
  p.importMeta={source:"NSE Nifty 100 / Nifty 200 constituent directory",sourceFiles:[],importedAt:new Date().toISOString(),sourceNotes:[window.ModelForgeUniverse.financialDataNote,"Index membership is a universe filter, not a daily market-cap rank. Verify current constituents and identifiers against NSE before use.","No financial values, share price, market capitalisation or shares outstanding have been fabricated or prefilled."]};
  project=normaliseProject(p);syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();persist();showPage("data");
