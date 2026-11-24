@@ -126,6 +126,21 @@ test("forecast, DCF and sensitivity tabs work in Chromium", async () => {
   }
 });
 
+test("generic operating forecast is blocked for banks and financial institutions", async () => {
+  const { page, pageErrors } = await openPage();
+  try {
+    const industry = page.locator("#industry");
+    await industry.fill("Banks");
+    await industry.dispatchEvent("change");
+    const valuation = await page.evaluate(() => window.ModelForge.getValuation());
+    assert.equal(valuation.valid, false);
+    assert.ok(valuation.errors.some(message => /not suitable for banks, insurers, NBFCs/.test(message)));
+    assert.deepEqual(pageErrors, []);
+  } finally {
+    await page.close();
+  }
+});
+
 test("existing-company models are blocked from valuation until verified financials are loaded", async () => {
   const { page, pageErrors } = await openPage();
   try {
