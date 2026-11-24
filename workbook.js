@@ -5,7 +5,7 @@ const E=root.ModelEngine;
 function col(n){let s="";while(n>0){let r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26)}return s}
 function ref(c,r){return col(c)+r}
 function q(sheet){return "'"+sheet.replace(/'/g,"''")+"'"}
-function fcell(ws,cell,formula,value){const raw=String(formula??"");const cached=value??0;const type=typeof cached==="string"?"str":typeof cached==="boolean"?"b":"n";ws[cell]={t:type,f:raw.startsWith("=")?raw.slice(1):raw,v:type==="n"?(Number.isFinite(cached)?cached:0):cached};}
+function fcell(ws,cell,formula,value){const raw=String(formula??"");const hasCache=value!==null&&value!==undefined&&value!=="";const cached=hasCache?value:0;const type=typeof cached==="string"?"str":typeof cached==="boolean"?"b":"n";const cellValue={t:type,f:raw.startsWith("=")?raw.slice(1):raw};if(hasCache)cellValue.v=type==="n"?(Number.isFinite(cached)?cached:0):cached;ws[cell]=cellValue;}
 function setStyle(ws,cell,style){if(ws[cell])ws[cell].s=style}
 function setFormat(ws,cell,format){if(!ws[cell])return;const formats={"0.0%":"0.0%;[Red](0.0%);-","0.00x":"0.00x;[Red](0.00x);-","0.0x":"0.0x;[Red](0.0x);-","0.000":"0.000;[Red](0.000);-"};ws[cell].z=formats[format]||format;}
 function extendRef(ws,lastRow,lastCol){const range=ws["!ref"]?X.utils.decode_range(ws["!ref"]):{s:{r:0,c:0},e:{r:0,c:0}};range.e.r=Math.max(range.e.r,lastRow-1);range.e.c=Math.max(range.e.c,lastCol-1);ws["!ref"]=X.utils.encode_range(range);}
@@ -55,22 +55,24 @@ function exportWorkbook(project,forecast,valuation,ratios,options={}){
   ["ModelForge | Inputs and assumptions"],["Blue font / blue fill = editable source or assumption input. Formula cells link to these values."],
   ["Company",p.name],["Prepared by",preparedBy],["Industry",p.industry],["Valuation date",p.valuationDate],["Currency",p.currency],["Reporting unit",p.unit],["Reporting frequency",p.frequency],["Forecast years",project.forecastYears],
   ["FORECAST OPERATING ASSUMPTIONS"],["Revenue growth",a.revenueGrowth],["Gross margin",a.grossMargin],["Employee costs / revenue",a.employeePct],["Other operating expenses / revenue",a.otherOpexPct],["D&A / opening PP&E",a.daPct],["Effective tax rate",a.taxRate],["Capex / revenue",a.capexPct],["Receivable days",a.arDays],["Inventory days",a.inventoryDays],["Payable days",a.apDays],["Other current assets / revenue",a.otherCurrentAssetsPct],["Other operating liabilities / revenue",a.otherLiabilitiesPct],["Annual debt repayment",a.annualDebtRepayment],["Interest rate",a.interestRate],["Dividend payout ratio",a.dividendPayout],
-  ["DCF AND WACC ASSUMPTIONS"],["Risk-free rate",d.riskFreeRate],["Equity risk premium",d.equityRiskPremium],["Levered beta",d.beta],["Pre-tax cost of debt",d.costOfDebt],["Market value of equity",d.equityMarketValue],["Market value of debt",d.debtMarketValue],["Shares outstanding (millions)",d.sharesOutstanding],["Terminal value method",d.terminalMethod==="growth"?"Perpetuity growth":"Exit EBITDA multiple"],["Perpetual growth rate",d.perpetualGrowth],["Exit EBITDA multiple",d.exitMultiple],["Cost of equity",""],["Equity weight",""],["Debt weight",""],["WACC",""]
+  ["DCF AND WACC ASSUMPTIONS"],["Risk-free rate",d.riskFreeRate],["Equity risk premium",d.equityRiskPremium],["Levered beta",d.beta],["Pre-tax cost of debt",d.costOfDebt],["Market value of equity",d.equityMarketValue],["Market value of debt",d.debtMarketValue],["Shares outstanding (selected reporting scale)",d.sharesOutstanding],["Terminal value method",d.terminalMethod==="growth"?"Perpetuity growth":"Exit EBITDA multiple"],["Perpetual growth rate",d.perpetualGrowth],["Exit EBITDA multiple",d.exitMultiple],["Cost of equity",""],["Equity weight",""],["Debt weight",""],["WACC",""]
  ];
+ inputsRows.push(["MODEL CONVENTIONS"],["Days per year",a.daysPerYear]);
  const inputs=addSheet(wb,"Inputs",inputsRows,[39,25]);title(inputs,2,"ModelForge | Inputs and assumptions");
- const inputRows={revenueGrowth:12,grossMargin:13,employeePct:14,otherOpexPct:15,daPct:16,taxRate:17,capexPct:18,arDays:19,inventoryDays:20,apDays:21,otherCurrentAssetsPct:22,otherLiabilitiesPct:23,annualDebtRepayment:24,interestRate:25,dividendPayout:26,riskFreeRate:28,equityRiskPremium:29,beta:30,costOfDebt:31,equityMarketValue:32,debtMarketValue:33,sharesOutstanding:34,terminalMethod:35,perpetualGrowth:36,exitMultiple:37};
+ const inputRows={revenueGrowth:12,grossMargin:13,employeePct:14,otherOpexPct:15,daPct:16,taxRate:17,capexPct:18,arDays:19,inventoryDays:20,apDays:21,otherCurrentAssetsPct:22,otherLiabilitiesPct:23,annualDebtRepayment:24,interestRate:25,dividendPayout:26,riskFreeRate:28,equityRiskPremium:29,beta:30,costOfDebt:31,equityMarketValue:32,debtMarketValue:33,sharesOutstanding:34,terminalMethod:35,perpetualGrowth:36,exitMultiple:37,daysPerYear:43};
  Object.keys(inputRows).forEach(k=>inputCell(inputs,"B"+inputRows[k],k==="terminalMethod"?(d.terminalMethod==="growth"?"Perpetuity growth":"Exit EBITDA multiple"):k==="sharesOutstanding"?d.sharesOutstanding:(d[k]??a[k])));
  formulaCell(inputs,"B38","=B28+B30*B29",valuation.costEquity);
  formulaCell(inputs,"B39","=IFERROR(B32/(B32+B33),0)",valuation.equityWeight);
  formulaCell(inputs,"B40","=IFERROR(B33/(B32+B33),0)",valuation.debtWeight);
  formulaCell(inputs,"B41","=B39*B38+B40*B31*(1-B17)",valuation.wacc);
- [3,4,5,6,7,8,9,10,11,27].forEach(r=>setStyle(inputs,"A"+r,styles.section));
- [12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,28,29,30,31,32,33,34,35,36,37].forEach(r=>setStyle(inputs,"B"+r,styles.input));
+ [3,4,5,6,7,8,9,10,11,27,42].forEach(r=>setStyle(inputs,"A"+r,styles.section));
+ [3,4,5,6,7,8,9,10].forEach(r=>setStyle(inputs,"B"+r,styles.input));
+ [12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,28,29,30,31,32,33,34,35,36,37,43].forEach(r=>setStyle(inputs,"B"+r,styles.input));
  [38,39,40,41].forEach(r=>setStyle(inputs,"B"+r,styles.formula));
  [12,13,14,15,16,17,18,22,23,25,26,28,29,31,36].forEach(r=>setFormat(inputs,"B"+r,"0.0%"));
- setFormat(inputs,"B30","0.00x");setFormat(inputs,"B37","0.0x");setFormat(inputs,"B38","0.0%");setFormat(inputs,"B39","0.0%");setFormat(inputs,"B40","0.0%");setFormat(inputs,"B41","0.0%");
+ setFormat(inputs,"B30","0.00x");setFormat(inputs,"B37","0.0x");setFormat(inputs,"B38","0.0%");setFormat(inputs,"B39","0.0%");setFormat(inputs,"B40","0.0%");setFormat(inputs,"B41","0.0%");setFormat(inputs,"B43","#,##0");
 
- extendRef(inputs,41,2);
+ extendRef(inputs,43,2);
  inputs["!autofilter"]={ref:"A11:B26"};
  // Forecast worksheet shells.
  function forecastSheet(name,rows){const arr=[ [name],["All projected values are formulas linked to Inputs and the adjacent statement schedules."],["Currency / unit",p.currency+" / "+p.unit],["Line item"].concat(forecast.map(x=>x.year)) ];rows.forEach(label=>arr.push([label]));const ws=addSheet(wb,name,arr,[34].concat(forecast.map(()=>14)));title(ws,n+1,name);headerRow(ws,4,n+1);return ws;}
@@ -113,12 +115,12 @@ function exportWorkbook(project,forecast,valuation,ratios,options={}){
   formulaCell(fcf,C+14,"="+C+"8+"+C+"10+"+C+"13",forecast[j].netChangeCash);
   formulaCell(fcf,C+15,"="+C+"8+"+C+"9",forecast[j].fcf);
   formulaCell(fbs,C+5,"="+hBS(5)+"+"+q("Forecast CF")+"!"+C+"14",forecast[j].cash);
-  formulaCell(fbs,C+6,"="+q("Forecast IS")+"!"+C+"5*'Inputs'!$B$19/365",forecast[j].ar);
-  formulaCell(fbs,C+7,"=-"+q("Forecast IS")+"!"+C+"7*'Inputs'!$B$20/365",forecast[j].inventory);
+  formulaCell(fbs,C+6,"="+q("Forecast IS")+"!"+C+"5*'Inputs'!$B$19/'Inputs'!$B$43",forecast[j].ar);
+  formulaCell(fbs,C+7,"=-"+q("Forecast IS")+"!"+C+"7*'Inputs'!$B$20/'Inputs'!$B$43",forecast[j].inventory);
   formulaCell(fbs,C+8,"="+q("Forecast IS")+"!"+C+"5*'Inputs'!$B$22",forecast[j].otherCurrentAssets);
   formulaCell(fbs,C+9,"="+hBS(9)+"-"+q("Forecast CF")+"!"+C+"9-"+q("Forecast CF")+"!"+C+"6",forecast[j].ppe);
   formulaCell(fbs,C+10,"=SUM("+C+"5:"+C+"9)",forecast[j].totalAssets);
-  formulaCell(fbs,C+11,"=-"+q("Forecast IS")+"!"+C+"7*'Inputs'!$B$21/365",forecast[j].ap);
+  formulaCell(fbs,C+11,"=-"+q("Forecast IS")+"!"+C+"7*'Inputs'!$B$21/'Inputs'!$B$43",forecast[j].ap);
   formulaCell(fbs,C+12,"="+hBS(12),forecast[j].shortDebt);
   formulaCell(fbs,C+13,"="+hBS(13)+"+"+q("Forecast CF")+"!"+C+"11",forecast[j].longDebt);
   formulaCell(fbs,C+14,"="+q("Forecast IS")+"!"+C+"5*'Inputs'!$B$23",forecast[j].otherLiabilities);
@@ -201,7 +203,7 @@ function exportWorkbook(project,forecast,valuation,ratios,options={}){
    "="+pbfx+"5+"+pbfx+"6+"+pbfx+"7+"+pbfx+"8-"+pbfx+"11-"+pbfx+"12-"+pbfx+"14",
    "=IFERROR("+pcfx+"5+"+pcfx+"6,NA())"
   ];
-  fx.forEach((formula,i)=>formulaCell(ratioSheet,C+(4+i),formula,Number.isFinite(ratios[j]?.[ratioNames[i][1]])?ratios[j][ratioNames[i][1]]:0));
+  fx.forEach((formula,i)=>formulaCell(ratioSheet,C+(4+i),formula,Number.isFinite(ratios[j]?.[ratioNames[i][1]])?ratios[j][ratioNames[i][1]]:null));
   [4,5,6,7,8,9,10,11].forEach(r=>setFormat(ratioSheet,C+r,"0.0%"));
   [12,13,14,15,16].forEach(r=>setFormat(ratioSheet,C+r,"0.00x"));
   [17,18].forEach(r=>setFormat(ratioSheet,C+r,"#,##0.0;[Red](#,##0.0);-"));
@@ -249,8 +251,8 @@ function exportWorkbook(project,forecast,valuation,ratios,options={}){
  compsRows.push(["Median","","","","","","","","",null,null,null,null,null]);compsRows.push(["Average","","","","","","","","",null,null,null,null,null]);
  const comps=addSheet(wb,"Comparables",compsRows,[32,12,14,14,14,14,14,14,14,14,14,14,12,12]);title(comps,14,"Trading comparables");
  const peerEnd=peerStart+project.peers.length-1,medianRow=peerEnd+1,averageRow=peerEnd+2;
- project.peers.forEach((peer,i)=>{const r=peerStart+i;for(let c=1;c<=9;c++)setStyle(comps,ref(c,r),styles.input);for(let c=3;c<=9;c++)setFormat(comps,ref(c,r),"#,##0.0;[Red](#,##0.0);-");formulaCell(comps,"J"+r,"=IFERROR(C"+r+"/D"+r+",NA())",E.peerMultiples(peer).evRevenue||0);formulaCell(comps,"K"+r,"=IFERROR(C"+r+"/E"+r+",NA())",E.peerMultiples(peer).evEbitda||0);formulaCell(comps,"L"+r,"=IFERROR(C"+r+"/F"+r+",NA())",E.peerMultiples(peer).evEbit||0);formulaCell(comps,"M"+r,"=IFERROR(H"+r+"/G"+r+",NA())",E.peerMultiples(peer).pe||0);formulaCell(comps,"N"+r,"=IFERROR(H"+r+"/I"+r+",NA())",E.peerMultiples(peer).pb||0);["J","K","L","M","N"].forEach(C=>setFormat(comps,C+r,"0.0x"))});
- ["J","K","L","M","N"].forEach(C=>{formulaCell(comps,C+medianRow,"=IFERROR(MEDIAN("+C+peerStart+":"+C+peerEnd+"),NA())",0);formulaCell(comps,C+averageRow,"=IFERROR(AVERAGE("+C+peerStart+":"+C+peerEnd+"),NA())",0)});
+ project.peers.forEach((peer,i)=>{const r=peerStart+i;for(let c=1;c<=9;c++)setStyle(comps,ref(c,r),styles.input);for(let c=3;c<=9;c++)setFormat(comps,ref(c,r),"#,##0.0;[Red](#,##0.0);-");formulaCell(comps,"J"+r,"=IFERROR(C"+r+"/D"+r+",NA())",E.peerMultiples(peer).evRevenue);formulaCell(comps,"K"+r,"=IFERROR(C"+r+"/E"+r+",NA())",E.peerMultiples(peer).evEbitda);formulaCell(comps,"L"+r,"=IFERROR(C"+r+"/F"+r+",NA())",E.peerMultiples(peer).evEbit);formulaCell(comps,"M"+r,"=IFERROR(H"+r+"/G"+r+",NA())",E.peerMultiples(peer).pe);formulaCell(comps,"N"+r,"=IFERROR(H"+r+"/I"+r+",NA())",E.peerMultiples(peer).pb);["J","K","L","M","N"].forEach(C=>setFormat(comps,C+r,"0.0x"))});
+ ["J","K","L","M","N"].forEach(C=>{formulaCell(comps,C+medianRow,"=IFERROR(MEDIAN("+C+peerStart+":"+C+peerEnd+"),NA())",null);formulaCell(comps,C+averageRow,"=IFERROR(AVERAGE("+C+peerStart+":"+C+peerEnd+"),NA())",null)});
  comps["A"+medianRow]={v:"Median",t:"s"};comps["A"+averageRow]={v:"Average",t:"s"};
  const impRow=averageRow+2;comps["A"+impRow]={v:"Target implied enterprise value",t:"s"};comps["A"+(impRow+1)]={v:"EV / Revenue",t:"s"};comps["A"+(impRow+2)]={v:"EV / EBITDA",t:"s"};comps["A"+(impRow+3)]={v:"EV / EBIT",t:"s"};
  formulaCell(comps,"B"+(impRow+1),"=J"+medianRow+"*"+q("Historical IS")+"!"+histLast+"5",null);
@@ -307,10 +309,10 @@ function exportWorkbook(project,forecast,valuation,ratios,options={}){
    formulaCell(scen,C+rows["D&A add-back"],"=-"+C+rows.DA,-forecast[t].da);
    formulaCell(scen,C+rows.Capex,"="+C+rows.Revenue+"*'Inputs'!$B$18",forecast[t].capex);
    formulaCell(scen,C+rows["Closing PP&E"],"="+C+rows["Opening PP&E"]+"+"+C+rows.Capex+"-"+C+rows["D&A add-back"],forecast[t].ppe);
-   formulaCell(scen,C+rows.Receivables,"="+C+rows.Revenue+"*'Inputs'!$B$19/365",forecast[t].ar);
-   formulaCell(scen,C+rows.Inventory,"=-"+C+rows.COGS+"*'Inputs'!$B$20/365",forecast[t].inventory);
+   formulaCell(scen,C+rows.Receivables,"="+C+rows.Revenue+"*'Inputs'!$B$19/'Inputs'!$B$43",forecast[t].ar);
+   formulaCell(scen,C+rows.Inventory,"=-"+C+rows.COGS+"*'Inputs'!$B$20/'Inputs'!$B$43",forecast[t].inventory);
    formulaCell(scen,C+rows["Other current assets"],"="+C+rows.Revenue+"*'Inputs'!$B$22",forecast[t].otherCurrentAssets);
-   formulaCell(scen,C+rows["Accounts payable"],"=-"+C+rows.COGS+"*'Inputs'!$B$21/365",forecast[t].ap);
+   formulaCell(scen,C+rows["Accounts payable"],"=-"+C+rows.COGS+"*'Inputs'!$B$21/'Inputs'!$B$43",forecast[t].ap);
    formulaCell(scen,C+rows["Other operating liabilities"],"="+C+rows.Revenue+"*'Inputs'!$B$23",forecast[t].otherLiabilities);
    formulaCell(scen,C+rows["Net working capital"],"="+C+rows.Receivables+"+"+C+rows.Inventory+"+"+C+rows["Other current assets"]+"-"+C+rows["Accounts payable"]+"-"+C+rows["Other operating liabilities"],forecast[t].ar+forecast[t].inventory+forecast[t].otherCurrentAssets-forecast[t].ap-forecast[t].otherLiabilities);
    const prevNwcRef=first?"("+q("Historical BS")+"!"+hLast+"6+"+q("Historical BS")+"!"+hLast+"7+"+q("Historical BS")+"!"+hLast+"8-"+q("Historical BS")+"!"+hLast+"11-"+q("Historical BS")+"!"+hLast+"14)":q("Scenario Calc")+"!"+prev+rows["Net working capital"];
