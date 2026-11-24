@@ -62,7 +62,8 @@ test("Excel report generates formula-linked statement, DCF, comps and sensitivit
   assert.equal(wb.Props.Author,preparedBy,"Prepared-by name should be stored in Excel document properties");
   assert.equal(wb.Sheets.Inputs.B12.v,p.assumptions.revenueGrowth);
   assert.equal(wb.Sheets.Inputs.B43.v,365,"Days per year should be stored once as an editable model convention.");
-  assert.equal(wb.Sheets.Ratios.B4.v,undefined,"Missing first-period revenue growth must not be cached as zero.");
+  assert.equal(exportedWorkbook.Sheets.Ratios.B4.v,undefined,"Missing first-period revenue growth must not be cached as zero.");
+  assert.equal(exportedWorkbook.Sheets.Ratios.B4.f,"NA()","Missing historical growth should remain an explicit unavailable formula.");
   assert.equal(exportedWorkbook.Sheets.Sensitivity.F5.v,undefined,"Invalid WACC / terminal-growth sensitivity cells must not be cached as zero.");
   assert.equal(wb.Sheets.Inputs.B35.v,"Perpetuity growth");
   assert.equal(wb.Sheets.Checks.D4.v,"PASS","Check formulas should store readable PASS / REVIEW text");
