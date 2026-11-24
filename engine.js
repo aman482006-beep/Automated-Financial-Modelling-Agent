@@ -396,6 +396,10 @@ function historicalRatios(h){
   const debt=shortDebt!==null&&longDebt!==null?shortDebt+longDebt:null,equity=B("equity");
   const priorEquity=i>0?atValue(h,"BS","equity",i-1):null;
   const priorAssets=i>0?atValue(h,"BS","totalAssets",i-1):null;
+  const priorShortDebt=i>0?atValue(h,"BS","shortDebt",i-1):null;
+  const priorLongDebt=i>0?atValue(h,"BS","longDebt",i-1):null;
+  const priorDebt=i===0?debt:(priorShortDebt!==null&&priorLongDebt!==null?num(priorShortDebt)+num(priorLongDebt):null);
+  const averageDebt=i===0?debt:(debt!==null&&priorDebt!==null?(debt+priorDebt)/2:null);
   const prevEq=i===0?equity:(equity!==null&&priorEquity!==null?(equity+priorEquity)/2:null);
   const prevAssets=i===0?B("totalAssets"):(B("totalAssets")!==null&&priorAssets!==null?(B("totalAssets")+priorAssets)/2:null);
   const prevRev=i>0?atValue(h,"IS","revenue",i-1):null;
@@ -403,7 +407,7 @@ function historicalRatios(h){
   out.push({
    period:periods[i],revenueGrowth:i>0&&prevRev!==null&&prevRev!==0&&rev!==null?rev/prevRev-1:null,grossMargin:rev?gp/rev:null,ebitdaMargin:rev?ebitda/rev:null,
    ebitMargin:rev?ebit/rev:null,netMargin:rev?ni/rev:null,roe:prevEq?ni/prevEq:null,roa:prevAssets?ni/prevAssets:null,
-   roce:(prevEq!==null&&debt!==null&&debt+prevEq!==0)?ebit/(debt+prevEq):null,
+   roce:(prevEq!==null&&averageDebt!==null&&averageDebt+prevEq!==0)?ebit/(averageDebt+prevEq):null,
    currentRatio:currentLiabilities!==null&&currentLiabilities!==0&&currentAssets!==null?currentAssets/currentLiabilities:null,
    quickRatio:currentLiabilities!==null&&currentLiabilities!==0&&B("cash")!==null&&B("ar")!==null?(B("cash")+B("ar"))/currentLiabilities:null,
    debtEquity:equity!==null&&equity!==0&&debt!==null?debt/equity:null,interestCoverage:interest?ebit/Math.abs(interest):null,
