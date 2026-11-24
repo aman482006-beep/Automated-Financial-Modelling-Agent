@@ -61,10 +61,10 @@ function exportWorkbook(project,forecast,valuation,ratios,options={}){
  const inputs=addSheet(wb,"Inputs",inputsRows,[39,25]);title(inputs,2,"ModelForge | Inputs and assumptions");
  const inputRows={revenueGrowth:12,grossMargin:13,employeePct:14,otherOpexPct:15,daPct:16,taxRate:17,capexPct:18,arDays:19,inventoryDays:20,apDays:21,otherCurrentAssetsPct:22,otherLiabilitiesPct:23,annualDebtRepayment:24,interestRate:25,dividendPayout:26,riskFreeRate:28,equityRiskPremium:29,beta:30,costOfDebt:31,equityMarketValue:32,debtMarketValue:33,sharesOutstanding:34,terminalMethod:35,perpetualGrowth:36,exitMultiple:37,daysPerYear:43};
  Object.keys(inputRows).forEach(k=>inputCell(inputs,"B"+inputRows[k],k==="terminalMethod"?(d.terminalMethod==="growth"?"Perpetuity growth":"Exit EBITDA multiple"):k==="sharesOutstanding"?d.sharesOutstanding:(d[k]??a[k])));
- formulaCell(inputs,"B38","=B28+B30*B29",valuation.costEquity);
- formulaCell(inputs,"B39","=IFERROR(B32/(B32+B33),0)",valuation.equityWeight);
- formulaCell(inputs,"B40","=IFERROR(B33/(B32+B33),0)",valuation.debtWeight);
- formulaCell(inputs,"B41","=B39*B38+B40*B31*(1-B17)",valuation.wacc);
+ formulaCell(inputs,"B38","=IF(COUNT(B28:B30)<3,NA(),B28+B30*B29)",valuation.costEquity);
+ formulaCell(inputs,"B39","=IFERROR(B32/(B32+B33),NA())",valuation.equityWeight);
+ formulaCell(inputs,"B40","=IFERROR(B33/(B32+B33),NA())",valuation.debtWeight);
+ formulaCell(inputs,"B41","=IF(COUNT(B17,B31,B38:B40)<5,NA(),B39*B38+B40*B31*(1-B17))",valuation.wacc);
  [3,4,5,6,7,8,9,10,11,27,42].forEach(r=>setStyle(inputs,"A"+r,styles.section));
  [3,4,5,6,7,8,9,10].forEach(r=>setStyle(inputs,"B"+r,styles.input));
  [12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,28,29,30,31,32,33,34,35,36,37,43].forEach(r=>setStyle(inputs,"B"+r,styles.input));
