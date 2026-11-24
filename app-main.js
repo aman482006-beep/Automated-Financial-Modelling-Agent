@@ -179,10 +179,10 @@ function renderHistory(){
  renderHistoryEditor();
 }
 function renderAssumptions(){
- const defs=[["revenueGrowth","Revenue growth","%"],["grossMargin","Gross margin","%"],["employeePct","Employee costs / revenue","%"],["otherOpexPct","Other opex / revenue","%"],["daPct","D&A / opening PP&E","%"],["taxRate","Effective tax rate","%"],["capexPct","Capex / revenue","%"],["arDays","Receivable days","days"],["inventoryDays","Inventory days","days"],["apDays","Payable days","days"],["otherCurrentAssetsPct","Other current assets / revenue","%"],["otherLiabilitiesPct","Other liabilities / revenue","%"],["annualDebtRepayment","Annual debt repayment",project.profile.unit],["interestRate","Interest rate","%"],["dividendPayout","Dividend payout ratio","%"]];
+ const defs=[["revenueGrowth","Revenue growth","%"],["grossMargin","Gross margin","%"],["employeePct","Employee costs / revenue","%"],["otherOpexPct","Other opex / revenue","%"],["daPct","D&A / opening PP&E","%"],["taxRate","Effective tax rate","%"],["capexPct","Capex / revenue","%"],["arDays","Receivable days","days"],["inventoryDays","Inventory days","days"],["apDays","Payable days","days"],["daysPerYear","Days per year","days"],["otherCurrentAssetsPct","Other current assets / revenue","%"],["otherLiabilitiesPct","Other liabilities / revenue","%"],["annualDebtRepayment","Annual debt repayment",project.profile.unit],["interestRate","Interest rate","%"],["dividendPayout","Dividend payout ratio","%"]];
  const percent=new Set(defs.filter(x=>x[2]==="%").map(x=>x[0]));
  $("#assumptionGrid").innerHTML=defs.map(([k,label,u])=>'<div class="assumption-field"><label>'+label+'</label><div class="input-wrap"><input data-assumption="'+k+'" type="number" step="'+(percent.has(k)?".1":"1")+'" value="'+esc(n(project.assumptions[k])*(percent.has(k)?100:1))+'"><span class="suffix">'+u+'</span></div></div>').join("");
- $$("[data-assumption]").forEach(el=>el.addEventListener("change",()=>{const k=el.dataset.assumption;project.assumptions[k]=n(el.value)/(percent.has(k)?100:1);rebuild();persist()}));
+ $$("[data-assumption]").forEach(el=>el.addEventListener("change",()=>{const k=el.dataset.assumption;project.assumptions[k]=el.value===""?null:n(el.value)/(percent.has(k)?100:1);rebuild();persist()}));
 }
 function renderForecastTable(id,title,items){const years=forecast.map(x=>x.year);$("#"+id).innerHTML="<thead><tr><th>"+title+"</th>"+years.map(y=>"<th>"+esc(y)+"</th>").join("")+"</tr></thead><tbody>"+items.map(([label,key,fn])=>"<tr><td>"+label+"</td>"+forecast.map(x=>"<td>"+(fn?fn(x):fmt(x[key]))+"</td>").join("")+"</tr>").join("")+"</tbody>"}
 function renderForecast(){
@@ -201,13 +201,13 @@ function renderWACC(){
  const defs=[["riskFreeRate","Risk-free rate","%"],["equityRiskPremium","Equity risk premium","%"],["beta","Levered beta","x"],["costOfDebt","Pre-tax cost of debt","%"],["equityMarketValue","Market value of equity",project.profile.unit],["debtMarketValue","Market value of debt",project.profile.unit]];
  const pctKeys=new Set(["riskFreeRate","equityRiskPremium","costOfDebt"]);
  $("#waccInputs").innerHTML=defs.map(([k,label,u])=>'<label>'+label+'<input type="number" step="any" data-dcf="'+k+'" value="'+esc(project.dcf[k]===null||project.dcf[k]===undefined?"":n(project.dcf[k])*(pctKeys.has(k)?100:1))+'"><small>'+u+'</small></label>').join("");
- $$("[data-dcf]").forEach(el=>el.addEventListener("change",()=>{const k=el.dataset.dcf;project.dcf[k]=n(el.value)/(pctKeys.has(k)?100:1);rebuild();persist()}));
+ $$("[data-dcf]").forEach(el=>el.addEventListener("change",()=>{const k=el.dataset.dcf;project.dcf[k]=el.value===""?null:n(el.value)/(pctKeys.has(k)?100:1);rebuild();persist()}));
 }
 function renderTerminal(){
  $$("[name=terminalMethod]").forEach(el=>el.checked=el.value===project.dcf.terminalMethod);
  const g=project.dcf.terminalMethod==="growth";
  $("#terminalInputs").innerHTML=g?'<label>Perpetual growth rate (%)<input id="terminalValueInput" type="number" step=".1" value="'+esc(project.dcf.perpetualGrowth===null||project.dcf.perpetualGrowth===undefined?"":project.dcf.perpetualGrowth*100)+'"></label>':'<label>Exit EBITDA multiple (x)<input id="terminalValueInput" type="number" step=".1" value="'+esc(project.dcf.exitMultiple===null||project.dcf.exitMultiple===undefined?"":project.dcf.exitMultiple)+'"></label>';
- $("#terminalValueInput").addEventListener("change",e=>{if(g)project.dcf.perpetualGrowth=n(e.target.value)/100;else project.dcf.exitMultiple=n(e.target.value);rebuild();persist()});
+ $("#terminalValueInput").addEventListener("change",e=>{if(g)project.dcf.perpetualGrowth=e.target.value===""?null:n(e.target.value)/100;else project.dcf.exitMultiple=e.target.value===""?null:n(e.target.value);rebuild();persist()});
 }
 function renderDCF(){
  const v=valuation;
@@ -613,7 +613,7 @@ function resetAssumptions(){project.assumptions=clone(E.DEFAULT_ASSUMPTIONS);ren
 function bindEvents(){
  syncProfile();
  const pfields={companyName:"name",analystName:"analyst",industry:"industry",valuationDate:"valuationDate",currency:"currency",unit:"unit",frequency:"frequency",shares:"sharesOutstanding"};
- Object.entries(pfields).forEach(([id,key])=>$("#"+id).addEventListener("change",e=>{project.profile[key]=key==="sharesOutstanding"?n(e.target.value):e.target.value;rebuild();renderAssumptions();renderWACC();persist()}));
+ Object.entries(pfields).forEach(([id,key])=>$("#"+id).addEventListener("change",e=>{project.profile[key]=key==="sharesOutstanding"?(e.target.value===""?null:n(e.target.value)):e.target.value;rebuild();renderAssumptions();renderWACC();persist()}));
  $("#themeSelect").addEventListener("change",e=>{project.theme=e.target.value;document.body.dataset.theme=project.theme;persist();drawCharts()});
  $("#historyStatement").addEventListener("change",renderHistoryEditor);
  $("#manualPeriodSelect").addEventListener("change",renderManualEntry);
