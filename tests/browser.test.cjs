@@ -268,6 +268,7 @@ test("Load opens the file picker and imports multi-sheet Excel after title rows"
     await page.locator('#nav [data-page="data"]').click();
     await page.locator("#shares").fill("100");
     await page.locator("#shares").dispatchEvent("change");
+    await page.locator('#nav [data-page="dcf"]').click();
     const waccInputs = [
       ["riskFreeRate","7"],["equityRiskPremium","6"],["beta","1"],["costOfDebt","8"],
       ["equityMarketValue","1000"],["debtMarketValue","200"]
