@@ -332,31 +332,38 @@ function renderMapping(){
 function seedAssumptionsFromImportedHistory(p,meta){
  const h=p.history,last=h.periods.length-1,prior=last>0?last-1:-1;
  const get=(g,k,i=last)=>h[g]?.[k]?.[i]??null;
- const a=p.assumptions,rev=get("IS","revenue"),prevRev=prior>=0?get("IS","revenue",prior):null;
+ const a=p.assumptions,rev=get("IS","revenue"),firstRev=get("IS","revenue",0),cogs=get("IS","cogs");
  const set=(key,value)=>{if(Number.isFinite(value))a[key]=value;};
- if(rev>0&&prevRev>0)set("revenueGrowth",rev/prevRev-1);
+ const dayCount=a.daysPerYear||365;
+ a.annualDebtRepayment=0;
+ a.dividendPayout=0;
  if(rev>0){
-  if(get("IS","grossProfit")!==null)set("grossMargin",get("IS","grossProfit")/rev);
+  if(firstRev>0&&last>0)set("revenueGrowth",Math.pow(rev/firstRev,1/last)-1);
+  const reportedGross=get("IS","grossProfit");
+  if(reportedGross!==null)set("grossMargin",reportedGross/rev);
+  else if(cogs!==null)set("grossMargin",(rev+cogs)/rev);
   if(get("IS","employeeExpenses")!==null)set("employeePct",Math.abs(get("IS","employeeExpenses"))/rev);
   if(get("IS","otherOpex")!==null)set("otherOpexPct",Math.abs(get("IS","otherOpex"))/rev);
   if(get("BS","otherCurrentAssets")!==null)set("otherCurrentAssetsPct",Math.max(0,get("BS","otherCurrentAssets"))/rev);
   if(get("BS","otherLiabilities")!==null)set("otherLiabilitiesPct",Math.max(0,get("BS","otherLiabilities"))/rev);
-  if(get("BS","ar")!==null)set("arDays",Math.max(0,get("BS","ar"))/rev*365);
-  if(get("BS","inventory")!==null&&get("IS","cogs")!==null&&Math.abs(get("IS","cogs"))>0)set("inventoryDays",Math.max(0,get("BS","inventory"))/Math.abs(get("IS","cogs"))*365);
+  if(get("BS","ar")!==null)set("arDays",Math.max(0,get("BS","ar"))/rev*dayCount);
+  if(get("BS","inventory")!==null&&cogs!==null&&Math.abs(cogs)>0)set("inventoryDays",Math.max(0,get("BS","inventory"))/Math.abs(cogs)*dayCount);
+  if(get("BS","ap")!==null&&cogs!==null&&Math.abs(cogs)>0)set("apDays",Math.max(0,get("BS","ap"))/Math.abs(cogs)*dayCount);
+  const reportedCapex=get("CF","capex");
+  if(reportedCapex!==null)set("capexPct",Math.abs(reportedCapex)/rev);
+  else p.importNotes=["A standalone capital-expenditure figure was not available; capex / revenue remains a template starting assumption and must be replaced with a sourced figure."];
  }
- const ppe=get("BS","ppe"),priorPpe=prior>=0?get("BS","ppe",prior):null,da=get("IS","da");
- if(ppe>0&&priorPpe!==null&&rev>0&&da!==null){
-  set("capexPct",Math.max(0,ppe-priorPpe+Math.abs(da))/rev);
-  p.importNotes=["Capex assumption estimated from the change in net fixed assets plus depreciation; review before relying on the valuation."];
- }
- if(ppe>0&&da!==null)set("daPct",Math.abs(da)/ppe);
+ const ppe=get("BS","ppe"),priorPpe=prior>=0?get("BS","ppe",prior):null,da=get("IS","da"),openingPpe=priorPpe>0?priorPpe:ppe;
+ if(openingPpe>0&&da!==null)set("daPct",Math.abs(da)/openingPpe);
  const pbt=get("IS","pbt"),tax=get("IS","tax");
  if(pbt>0&&tax!==null)set("taxRate",Math.min(.6,Math.max(0,Math.abs(tax)/pbt)));
- const debt=(get("BS","shortDebt")||0)+(get("BS","longDebt")||0),interest=get("IS","interestExpense");
- if(debt>0&&interest!==null)set("interestRate",Math.abs(interest)/debt);
+ const debt=(get("BS","shortDebt")||0)+(get("BS","longDebt")||0);
+ const priorDebt=prior>=0?((get("BS","shortDebt",prior)||0)+(get("BS","longDebt",prior)||0)):debt;
+ const averageDebt=(debt+priorDebt)/2,interest=get("IS","interestExpense");
+ if(averageDebt>0&&interest!==null)set("interestRate",Math.abs(interest)/averageDebt);
  const ni=get("IS","netIncome");
  if(ni>0&&Number.isFinite(meta?.dividendAmount))set("dividendPayout",Math.min(1.5,Math.max(0,meta.dividendAmount/ni)));
- if(meta?.source==="Screener.in")a.annualDebtRepayment=0;
+ if(p.importNotes?.length&&Array.isArray(p.importMeta?.sourceNotes))p.importMeta.sourceNotes.push(...p.importNotes);
  return p;
 }
 
@@ -436,15 +443,13 @@ async function importStatements(files){
  if(!records.length)throw new Error("No financial values were found in "+files.map(f=>f.name).join(", ")+". For Screener.in exports, keep the Data Sheet content intact. Other workbooks need Period/Year and line-item headers, or Period, Statement, Item and Value columns.");
  if(screenerImport){
   const fresh=E.defaultProject();
-  fresh.profile={...fresh.profile,name:screenerImport.companyName||files[0].name.replace(/\.(xlsx|xls)$/i,""),analyst:"Financial Analyst",industry:"",valuationDate:screenerImport.latestDate||fresh.profile.valuationDate,currency:screenerImport.currency||"INR",unit:screenerImport.unit||"crores",frequency:"Annual",sharesOutstanding:screenerImport.sharesOutstandingCrores||100};
+  fresh.profile={...fresh.profile,name:screenerImport.companyName||files[0].name.replace(/\.(xlsx|xls)$/i,""),analyst:"Financial Analyst",industry:"",valuationDate:screenerImport.latestDate||fresh.profile.valuationDate,currency:screenerImport.currency||"INR",unit:screenerImport.unit||"crores",frequency:"Annual",sharesOutstanding:screenerImport.sharesOutstandingCrores??null};
   fresh.history=E.historyFromRecords(records,{});
   fresh.rawRecords=records;
   fresh.mapping={};
   records.forEach(record=>{if(record.mapped)fresh.mapping[record.label]=record.mapped;});
   fresh.peers=[];
-  fresh.dcf.sharesOutstanding=fresh.profile.sharesOutstanding;
-  if(Number.isFinite(screenerImport.marketCapCrores))fresh.dcf.equityMarketValue=screenerImport.marketCapCrores;
-  fresh.dcf.debtMarketValue=Math.max(0,fresh.history.BS.longDebt.at(-1)||0);
+  fresh.dcf={...fresh.dcf,riskFreeRate:null,equityRiskPremium:null,beta:null,costOfDebt:null,equityMarketValue:Number.isFinite(screenerImport.marketCapCrores)?screenerImport.marketCapCrores:null,debtMarketValue:null,sharesOutstanding:fresh.profile.sharesOutstanding,perpetualGrowth:null,exitMultiple:null};
   fresh.importMeta={source:screenerImport.source,sourceFiles:files.map(file=>file.name),importedAt:new Date().toISOString(),currentPrice:screenerImport.currentPrice,marketCapCrores:screenerImport.marketCapCrores,latestPeriod:screenerImport.latestPeriod,sourceNotes:screenerImport.sourceNotes||[]};
   project=normaliseProject(fresh);
   seedAssumptionsFromImportedHistory(project,screenerImport);
