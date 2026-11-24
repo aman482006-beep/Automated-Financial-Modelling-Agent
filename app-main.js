@@ -130,7 +130,7 @@ function rebuild(){
  modelStatus=E.modelReadiness(project.history,project.profile.frequency);
  const assumptionErrors=E.validateForecastAssumptions(project.assumptions);
  const sector=String(project.profile.industry||"").toLowerCase();
- const sectorBlockers=/financial services|banking|insurance|banks and financials/.test(sector)
+ const sectorBlockers=/financial services|financials|bank(?:s|ing)?|insurance|nbfc|non.?banking financial/.test(sector)
   ?["The generic operating three-statement template is not suitable for banks, insurers, NBFCs and most financial institutions. Use a sector-specific banking / financial-institution model; historical review remains available."]:[];
  if(sectorBlockers.length)modelStatus={...modelStatus,ready:false,blockers:[...modelStatus.blockers,...sectorBlockers]};
  const blockers=[...modelStatus.blockers,...assumptionErrors];
