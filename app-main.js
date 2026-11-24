@@ -369,7 +369,8 @@ function seedAssumptionsFromImportedHistory(p,meta){
   const requiredDrivers=["revenueGrowth","grossMargin","employeePct","otherOpexPct","daPct","taxRate","capexPct","arDays","inventoryDays","apDays","otherCurrentAssetsPct","otherLiabilitiesPct","interestRate"];
   const templateDrivers=requiredDrivers.filter(key=>!seeded.has(key));
   if(templateDrivers.length)p.importMeta.sourceNotes.push("Template starting assumptions remain for these forecast drivers because the upload did not provide enough history to derive them: "+templateDrivers.join(", ")+". Replace them with sourced figures or a documented operating case before relying on the forecast.");
-  p.importMeta.sourceNotes.push("Annual debt repayment and dividend payout are set to zero pending a sourced debt maturity schedule and dividend policy; these are not inferred from the balance sheet.");
+  const zeroPolicyDefaults=[["annualDebtRepayment","annual debt repayment"],["dividendPayout","dividend payout"]].filter(([key])=>!seeded.has(key)).map(([,label])=>label);
+  if(zeroPolicyDefaults.length)p.importMeta.sourceNotes.push(zeroPolicyDefaults.join(" and ")+" are set to zero pending a sourced debt maturity schedule and dividend policy; these are not inferred from the balance sheet.");
  }
  return p;
 }
