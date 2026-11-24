@@ -27,7 +27,7 @@ function normaliseProject(p){
   currency:["INR","USD","EUR","GBP","SGD"].includes(sourceProfile.currency)?sourceProfile.currency:"INR",
   unit:["millions","thousands","crores","actual"].includes(sourceProfile.unit)?sourceProfile.unit:"millions",
   frequency:["Annual","Quarterly"].includes(sourceProfile.frequency)?sourceProfile.frequency:"Annual",
-  sharesOutstanding:safeNumber(sourceProfile.sharesOutstanding,100),
+  sharesOutstanding:sourceProfile.sharesOutstanding===null||sourceProfile.sharesOutstanding===""?null:safeNumber(sourceProfile.sharesOutstanding,100),
   symbol:safeText(sourceProfile.symbol,"",30),
   exchange:safeText(sourceProfile.exchange,"",20)
  };
@@ -51,7 +51,7 @@ function normaliseProject(p){
  Object.entries(E.DEFAULT_DCF).forEach(([key,fallback])=>{
   p.dcf[key]=key==="terminalMethod"
    ?(["growth","multiple"].includes(rawDcf[key])?rawDcf[key]:fallback)
-   :safeNumber(rawDcf[key],fallback);
+   :(rawDcf[key]===null||rawDcf[key]==="")?null:safeNumber(rawDcf[key],fallback);
  });
  const inputPeers=Array.isArray(p.peers)?p.peers.slice(0,100):E.clone(E.DEFAULT_PEERS);
  const peerKeys=["ev","revenue","ebitda","ebit","netIncome","marketCap","bookEquity"];
@@ -125,10 +125,14 @@ document.addEventListener("click",e=>{const b=e.target.closest("[data-page]");if
 function syncProfile(){const p=project.profile;$("#companyName").value=p.name||"";$("#analystName").value=p.analyst||"";$("#industry").value=p.industry||"";$("#valuationDate").value=p.valuationDate||"";$("#currency").value=p.currency||"INR";$("#unit").value=p.unit||"millions";$("#frequency").value=p.frequency||"Annual";$("#shares").value=p.sharesOutstanding??"";$("#sideCompany").textContent=p.name||"Untitled project";$("#overviewCompany").textContent=p.name||"Untitled project";$("#themeSelect").value=project.theme||"light";document.body.dataset.theme=project.theme||"light"}
 function getLatest(g,k){const arr=project.history[g]?.[k]||[];const v=arr[arr.length-1];return v===null?null:n(v)}
 function rebuild(){
- project.dcf.sharesOutstanding=n(project.profile.sharesOutstanding);
+ project.dcf.sharesOutstanding=project.profile.sharesOutstanding===null||project.profile.sharesOutstanding===""?null:n(project.profile.sharesOutstanding);
  ratios=E.historicalRatios(project.history);
  modelStatus=E.modelReadiness(project.history,project.profile.frequency);
  const assumptionErrors=E.validateForecastAssumptions(project.assumptions);
+ const sector=String(project.profile.industry||"").toLowerCase();
+ const sectorBlockers=/financial services|banking|insurance|banks and financials/.test(sector)
+  ?["The generic operating three-statement template is not suitable for banks, insurers, NBFCs and most financial institutions. Use a sector-specific banking / financial-institution model; historical review remains available."]:[];
+ if(sectorBlockers.length)modelStatus={...modelStatus,ready:false,blockers:[...modelStatus.blockers,...sectorBlockers]};
  const blockers=[...modelStatus.blockers,...assumptionErrors];
  if(blockers.length){
   forecast=[];
