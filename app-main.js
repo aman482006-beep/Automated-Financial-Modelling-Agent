@@ -333,7 +333,8 @@ function seedAssumptionsFromImportedHistory(p,meta){
  const h=p.history,last=h.periods.length-1,prior=last>0?last-1:-1;
  const get=(g,k,i=last)=>h[g]?.[k]?.[i]??null;
  const a=p.assumptions,rev=get("IS","revenue"),firstRev=get("IS","revenue",0),cogs=get("IS","cogs");
- const set=(key,value)=>{if(Number.isFinite(value))a[key]=value;};
+ const seeded=new Set();
+ const set=(key,value)=>{if(Number.isFinite(value)){a[key]=value;seeded.add(key);}};
  const dayCount=a.daysPerYear||365;
  a.annualDebtRepayment=0;
  a.dividendPayout=0;
@@ -363,7 +364,13 @@ function seedAssumptionsFromImportedHistory(p,meta){
  if(averageDebt>0&&interest!==null)set("interestRate",Math.abs(interest)/averageDebt);
  const ni=get("IS","netIncome");
  if(ni>0&&Number.isFinite(meta?.dividendAmount))set("dividendPayout",Math.min(1.5,Math.max(0,meta.dividendAmount/ni)));
- if(p.importNotes?.length&&Array.isArray(p.importMeta?.sourceNotes))p.importMeta.sourceNotes.push(...p.importNotes);
+ if(Array.isArray(p.importMeta?.sourceNotes)){
+  if(p.importNotes?.length)p.importMeta.sourceNotes.push(...p.importNotes);
+  const requiredDrivers=["revenueGrowth","grossMargin","employeePct","otherOpexPct","daPct","taxRate","capexPct","arDays","inventoryDays","apDays","otherCurrentAssetsPct","otherLiabilitiesPct","interestRate"];
+  const templateDrivers=requiredDrivers.filter(key=>!seeded.has(key));
+  if(templateDrivers.length)p.importMeta.sourceNotes.push("Template starting assumptions remain for these forecast drivers because the upload did not provide enough history to derive them: "+templateDrivers.join(", ")+". Replace them with sourced figures or a documented operating case before relying on the forecast.");
+  p.importMeta.sourceNotes.push("Annual debt repayment and dividend payout are set to zero pending a sourced debt maturity schedule and dividend policy; these are not inferred from the balance sheet.");
+ }
  return p;
 }
 
@@ -475,7 +482,7 @@ async function importStatements(files){
   seedAssumptionsFromImportedHistory(project,project.importMeta);
   const debt=(project.history.BS.shortDebt.at(-1)||0)+(project.history.BS.longDebt.at(-1)||0),interest=project.history.IS.interestExpense.at(-1);
   if(debt>0&&interest!==null)project.dcf.costOfDebt=project.assumptions.interestRate;
-  project.importMeta.sourceNotes.push("Forecast drivers are seeded from the latest available historical statements where possible. Any driver that could not be derived remains a template starting assumption and requires analyst review.");
+  project.importMeta.sourceNotes.push("Forecast drivers that could not be derived from the uploaded history are listed explicitly in the source trace and remain template starting assumptions until replaced.");
   project.importMeta.sourceNotes.push("Valuation inputs not present in the upload remain blank; add sourced beta, risk-free rate, equity risk premium, market value of debt and share count before calculating DCF.");
   if(selectedSecurity&&project.importMeta.sourceNotes.length<100)project.importMeta.sourceNotes.push("Uploaded figures have not been independently authenticated as belonging to the selected NSE issuer.");
   renderAssumptions();renderWACC();renderTerminal();
