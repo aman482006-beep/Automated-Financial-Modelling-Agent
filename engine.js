@@ -42,7 +42,7 @@ const ALIASES={
  cff:"CF.cff",cashflowfromfinancing:"CF.cff",netcashfromfinancingactivities:"CF.cff",
  fcf:"CF.fcf",freecashflow:"CF.fcf",freecashflowtofirm:"CF.fcf"
 };
-const DEFAULT_ASSUMPTIONS={revenueGrowth:.10,grossMargin:.48,employeePct:.138,otherOpexPct:.118,daPct:.045,taxRate:.25,capexPct:.067,arDays:45,inventoryDays:64,apDays:55,otherCurrentAssetsPct:.03,otherLiabilitiesPct:.052,annualDebtRepayment:20,interestRate:.085,dividendPayout:.20};
+const DEFAULT_ASSUMPTIONS={revenueGrowth:.10,grossMargin:.48,employeePct:.138,otherOpexPct:.118,daPct:.045,taxRate:.25,capexPct:.067,arDays:45,inventoryDays:64,apDays:55,daysPerYear:365,otherCurrentAssetsPct:.03,otherLiabilitiesPct:.052,annualDebtRepayment:20,interestRate:.085,dividendPayout:.20};
 const DEFAULT_DCF={riskFreeRate:.07,equityRiskPremium:.06,beta:1.05,costOfDebt:.085,equityMarketValue:1800,debtMarketValue:700,sharesOutstanding:100,terminalMethod:"growth",perpetualGrowth:.04,exitMultiple:9};
 const DEFAULT_PEERS=[
  {name:"Sample peer Alpha · synthetic",ev:2600,revenue:2200,ebitda:420,ebit:330,netIncome:180,marketCap:1450,bookEquity:1200,synthetic:true},
@@ -508,6 +508,7 @@ function validateForecastAssumptions(a){
   arDays:[0,3650],
   inventoryDays:[0,3650],
   apDays:[0,3650],
+  daysPerYear:[360,366],
   otherCurrentAssetsPct:[0,2],
   otherLiabilitiesPct:[0,2],
   annualDebtRepayment:[0,1e12],
@@ -520,6 +521,7 @@ function validateForecastAssumptions(a){
    errors.push(key+" must be a finite value between "+minimum+" and "+maximum+".");
   }
  }
+ if(Number.isFinite(a.daysPerYear)&&!Number.isInteger(a.daysPerYear))errors.push("daysPerYear must be a whole number of days.");
  return errors;
 }
 
@@ -591,7 +593,7 @@ function buildForecast(h,a,years){
    emp=-rev*a.employeePct,opex=-rev*a.otherOpexPct,ebitda=gross+emp+opex,
    da=-ppe*a.daPct,ebit=ebitda+da,interest=-(shortDebt+longDebt)*a.interestRate,
    pbt=ebit+interest,tax=-Math.max(0,pbt*a.taxRate),netIncome=pbt+tax,
-   nextAR=rev*a.arDays/365,nextInv=-cogs*a.inventoryDays/365,nextAP=-cogs*a.apDays/365,
+   nextAR=rev*a.arDays/a.daysPerYear,nextInv=-cogs*a.inventoryDays/a.daysPerYear,nextAP=-cogs*a.apDays/a.daysPerYear,
    nextOCA=rev*a.otherCurrentAssetsPct,nextOtherLiab=rev*a.otherLiabilitiesPct,
    capex=rev*a.capexPct,daAddback=-da,nextPPE=ppe+capex-daAddback,
    debtRepayment=Math.min(longDebt,Math.max(0,a.annualDebtRepayment)),nextLongDebt=longDebt-debtRepayment,
