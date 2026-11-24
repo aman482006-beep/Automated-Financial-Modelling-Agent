@@ -331,3 +331,8 @@ body[data-theme="warm"] .start-panel{background:linear-gradient(112deg,#fffdf8,#
 a:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
  outline:2px solid var(--blue);outline-offset:3px
 }
+
+
+/* Downloadable company-universe data */
+.universe-download{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:13px}
+.universe-download small{max-width:520px;color:var(--muted);font-size:10px;line-height:1.5}
