@@ -255,6 +255,8 @@ test("Load opens the file picker and imports multi-sheet Excel after title rows"
     assert.deepEqual(project.fcf, [120,135]);
     assert.equal(project.readiness, 0);
     assert.equal(project.profile.sharesOutstanding, null, "An uploaded workbook without a share count must not use a demo share count.");
+    assert.equal(await page.locator("#companyName").inputValue(), "ACME_Annual_Statements", "The company details panel should refresh to the imported company.");
+    assert.equal(await page.locator("#shares").inputValue(), "", "The company details panel must not show the Aster demo share count after importing another company.");
     assert.equal(project.assumptions.daysPerYear, 365);
     assert.ok(Math.abs(project.assumptions.revenueGrowth - 0.1) < 1e-10, "Revenue growth should be seeded from the two uploaded years.");
     assert.ok(Math.abs(project.assumptions.grossMargin - 530/1100) < 1e-10, "Gross margin should use the reported historical gross profit.");
