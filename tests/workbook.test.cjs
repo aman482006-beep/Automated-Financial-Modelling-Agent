@@ -11,6 +11,7 @@ require("../workbook.js");
 
 test("Excel report generates formula-linked statement, DCF, comps and sensitivity tabs",t=>{
  const p=E.defaultProject();
+ p.dcf.perpetualGrowth=0.09;
  const f=E.buildForecast(p.history,p.assumptions,p.forecastYears);
  const ratios=E.historicalRatios(p.history);
  const valuation=E.calculateDCF(f,p.history,p.dcf,p.assumptions);
@@ -62,6 +63,7 @@ test("Excel report generates formula-linked statement, DCF, comps and sensitivit
   assert.equal(wb.Sheets.Inputs.B12.v,p.assumptions.revenueGrowth);
   assert.equal(wb.Sheets.Inputs.B43.v,365,"Days per year should be stored once as an editable model convention.");
   assert.equal(wb.Sheets.Ratios.B4.v,undefined,"Missing first-period revenue growth must not be cached as zero.");
+  assert.equal(exportedWorkbook.Sheets.Sensitivity.F5.v,undefined,"Invalid WACC / terminal-growth sensitivity cells must not be cached as zero.");
   assert.equal(wb.Sheets.Inputs.B35.v,"Perpetuity growth");
   assert.equal(wb.Sheets.Checks.D4.v,"PASS","Check formulas should store readable PASS / REVIEW text");
   assert.equal(typeof wb.Sheets.Checks.D4.v,"string","Text formula results must remain text values");
