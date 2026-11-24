@@ -453,18 +453,31 @@ async function importStatements(files){
   fresh.importMeta={source:screenerImport.source,sourceFiles:files.map(file=>file.name),importedAt:new Date().toISOString(),currentPrice:screenerImport.currentPrice,marketCapCrores:screenerImport.marketCapCrores,latestPeriod:screenerImport.latestPeriod,sourceNotes:screenerImport.sourceNotes||[]};
   project=normaliseProject(fresh);
   seedAssumptionsFromImportedHistory(project,screenerImport);
-  project.dcf.costOfDebt=project.assumptions.interestRate;
+  const importedDebt=(project.history.BS.shortDebt.at(-1)||0)+(project.history.BS.longDebt.at(-1)||0),importedInterest=project.history.IS.interestExpense.at(-1);
+  if(importedDebt>0&&importedInterest!==null){
+   project.dcf.costOfDebt=project.assumptions.interestRate;
+   project.importMeta.sourceNotes.push("Pre-tax cost of debt is seeded as a historical interest-expense / average-debt proxy; replace it with a sourced current borrowing cost where available.");
+  }
+  project.importMeta.sourceNotes.push("Risk-free rate, equity risk premium, beta, market value of debt and terminal value assumption remain blank until sourced.");
   renderAssumptions();renderWACC();renderTerminal();
  }else{
-  const fresh=E.defaultProject();
-  fresh.profile.name=project.security?.name||(files.length===1?files[0].name.replace(/\.(csv|xlsx|xls)$/i,""):"Imported financial data");
-  if(project.security)fresh.security=project.security;
+  const fresh=E.defaultProject(),previousProfile=project.profile,selectedSecurity=project.security;
+  fresh.profile={...fresh.profile,name:selectedSecurity?.name||(files.length===1?files[0].name.replace(/\.(csv|xlsx|xls)$/i,""):"Imported financial data"),analyst:previousProfile.analyst||"Financial Analyst",industry:selectedSecurity?.sector||previousProfile.industry||"",valuationDate:previousProfile.valuationDate||fresh.profile.valuationDate,currency:previousProfile.currency||"INR",unit:previousProfile.unit||"millions",frequency:previousProfile.frequency||"Annual",sharesOutstanding:null,symbol:selectedSecurity?.symbol||"",exchange:selectedSecurity?.exchange||""};
+  fresh.dcf={...fresh.dcf,riskFreeRate:null,equityRiskPremium:null,beta:null,costOfDebt:null,equityMarketValue:null,debtMarketValue:null,sharesOutstanding:null,perpetualGrowth:null,exitMultiple:null};
+  fresh.assumptions.annualDebtRepayment=0;fresh.assumptions.dividendPayout=0;
+  if(selectedSecurity)fresh.security=selectedSecurity;
   fresh.rawRecords=records;
   fresh.mapping={};
   Array.from(new Set(records.map(r=>r.label))).forEach(label=>{fresh.mapping[label]=E.mapLabel(label)||"ignore";});
   fresh.history=E.historyFromRecords(records,fresh.mapping);
   fresh.importMeta={source:"User-provided CSV / Excel",sourceFiles:files.map(file=>file.name),importedAt:new Date().toISOString(),sourceNotes:["Source figures were supplied by the user. Verify every mapped value against the original filing; the app does not independently fetch or verify financial statements.",...(window.ModelForgeLastImportNotes||[]),...(fresh.security?["Uploaded workbook has not been independently authenticated as belonging to the selected NSE security. Check issuer name, symbol, reporting entity and period."]:[])]};
   project=normaliseProject(fresh);
+  seedAssumptionsFromImportedHistory(project,project.importMeta);
+  const debt=(project.history.BS.shortDebt.at(-1)||0)+(project.history.BS.longDebt.at(-1)||0),interest=project.history.IS.interestExpense.at(-1);
+  if(debt>0&&interest!==null)project.dcf.costOfDebt=project.assumptions.interestRate;
+  project.importMeta.sourceNotes.push("Forecast drivers are seeded from the latest available historical statements where possible. Any driver that could not be derived remains a template starting assumption and requires analyst review.");
+  project.importMeta.sourceNotes.push("Valuation inputs not present in the upload remain blank; add sourced beta, risk-free rate, equity risk premium, market value of debt and share count before calculating DCF.");
+  if(selectedSecurity&&project.importMeta.sourceNotes.length<100)project.importMeta.sourceNotes.push("Uploaded figures have not been independently authenticated as belonging to the selected NSE issuer.");
   renderAssumptions();renderWACC();renderTerminal();
  }
  renderMapping();renderManualEntry();rebuild();persist();
