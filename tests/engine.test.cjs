@@ -49,6 +49,17 @@ test("working capital, PP&E, debt and retained earnings roll forward", () => {
   assert.ok(Math.abs(first.longDebt-(p.history.BS.longDebt.at(-1)-first.debtRepayment))<1e-8);
 });
 
+test("working-capital days use the central day-count assumption", () => {
+  const p=E.defaultProject();
+  p.assumptions.daysPerYear=360;
+  const forecast=E.buildForecast(p.history,p.assumptions,1)[0];
+  assert.ok(Math.abs(forecast.ar-forecast.revenue*p.assumptions.arDays/360)<1e-10);
+  assert.ok(Math.abs(forecast.inventory-Math.abs(forecast.cogs)*p.assumptions.inventoryDays/360)<1e-10);
+  assert.ok(Math.abs(forecast.ap-Math.abs(forecast.cogs)*p.assumptions.apDays/360)<1e-10);
+  assert.ok(Math.abs(forecast.check)<1e-8);
+  assert.ok(E.validateForecastAssumptions({...p.assumptions,daysPerYear:365.5}).some(x=>/whole number/.test(x)));
+});
+
 test("WACC uses CAPM and market value capital weights", () => {
   const p=E.defaultProject(), w=E.calculateWACC(p.dcf,p.assumptions.taxRate);
   const ke=p.dcf.riskFreeRate+p.dcf.beta*p.dcf.equityRiskPremium;
