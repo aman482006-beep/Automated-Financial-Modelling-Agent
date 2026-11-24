@@ -39,11 +39,25 @@ Quarterly periods are sorted chronologically for review, but they are not accept
 
 Revenue grows at the user-entered rate. Gross profit is revenue × gross margin. COGS is gross profit − revenue (negative expense convention). Employee costs and other operating expenses are negative revenue-based drivers. EBITDA equals gross profit plus these operating expenses. D&A is a negative P&L expense based on opening PP&E. EBIT = EBITDA + D&A. Interest expense uses opening short- plus long-term debt multiplied by the interest rate. Tax is applied to positive PBT only.
 
-Receivables = revenue × receivable days / 365. Inventory = absolute COGS × inventory days / 365. Payables = absolute COGS × payable days / 365. Other current assets and other liabilities use revenue percentages. PP&E = opening PP&E + capex − depreciation add-back (D&A is negative on the income statement). Long-term debt falls by scheduled repayment. Retained equity = opening equity + net income − dividends.
+Receivables = revenue × receivable days / days per year. Inventory = absolute COGS × inventory days / days per year. Payables = absolute COGS × payable days / days per year. Days per year is a central editable convention (360–366 days; default 365) used by both the JavaScript engine and Excel workbook. Other current assets and other liabilities use revenue percentages. PP&E = opening PP&E + capex − depreciation add-back (D&A is negative on the income statement). Long-term debt falls by scheduled repayment. Retained equity = opening equity + net income − dividends.
 
 Cash flow from operations = net income + D&A add-back − increase in net operating working capital. Investing cash flow = −capex. Financing cash flow = debt repayment − dividends. Cash rolls forward from opening cash plus all three cash flow sections.
 
 **Simplification:** closing cash is the residual/balancing line in the forecast balance sheet. The check is exposed in the table. A production financing model should instead include a cash minimum, revolver draw/paydown logic, debt issuance fees and an explicit funding waterfall. Do not interpret negative cash as an executable funding plan.
+
+## Imported assumptions and source discipline
+
+When a statement workbook is imported, historical growth and operating ratios are derived from the uploaded periods where the relevant lines exist. Receivable, inventory and payable days use the latest reported balances, reported COGS and the selected day-count convention. Capex / revenue is seeded only from a distinct capital-expenditure line; total investing cash flow is not used as a substitute. D&A / PP&E uses opening PP&E where available. Historical interest expense divided by average interest-bearing debt is only a proxy for pre-tax cost of debt and is labelled as such.
+
+Missing source fields remain blank. Share count, risk-free rate, equity risk premium, beta, market value of debt and terminal assumptions are not carried across from the synthetic demo into an imported company. The analyst must source and enter them before DCF is enabled. Operating drivers that cannot be derived remain visible template starting assumptions and must be reviewed against filings and company-specific guidance. The generic model is not intended for banks, insurers, NBFCs or other financial institutions; use a dedicated sector model for those issuers.
+
+## Excel colour and worksheet conventions
+
+- Blue font with a light blue fill marks editable hard-coded inputs and reported source values.
+- Black font marks calculations within the same worksheet.
+- Green font marks formulas linked to another worksheet.
+- Forecast and valuation schedules use dedicated tabs, while the Inputs worksheet is the central source for model assumptions and conventions. The complete export includes Cover, Inputs, historical statements, forecast statements, FCF, Ratios, DCF, Comparables, Sensitivity, Scenario Calc and Checks.
+- Formula cells with unavailable cached results remain blank rather than being represented as an invented zero.
 
 ## DCF and WACC
 
