@@ -245,6 +245,7 @@ test("Load opens the file picker and imports multi-sheet Excel after title rows"
       profile: window.ModelForge.getProject().profile,
       assumptions: window.ModelForge.getProject().assumptions,
       dcf: window.ModelForge.getProject().dcf,
+      sourceNotes: window.ModelForge.getProject().importMeta.sourceNotes,
       valuationValid: window.ModelForge.getValuation().valid,
       readiness: window.ModelForge.getProject().history.BS.totalAssets[1] - window.ModelForge.getProject().history.BS.totalLiabEquity[1]
     }));
@@ -263,6 +264,7 @@ test("Load opens the file picker and imports multi-sheet Excel after title rows"
     assert.ok(Math.abs(project.assumptions.capexPct - 65/1100) < 1e-10, "Capex should be seeded only from the distinct capex line.");
     assert.equal(project.assumptions.annualDebtRepayment, 0, "Debt repayment should not be assumed from a generic default.");
     assert.equal(project.assumptions.dividendPayout, 0, "Dividends should not be assumed from a generic default.");
+    assert.match(project.sourceNotes.join(" "), /Annual debt repayment and dividend payout are set to zero pending a sourced debt maturity schedule and dividend policy/);
     for (const key of ["riskFreeRate","equityRiskPremium","beta","equityMarketValue","debtMarketValue","sharesOutstanding","perpetualGrowth","exitMultiple"]) {
       assert.equal(project.dcf[key], null, "Unsourced DCF input must remain blank: " + key);
     }
