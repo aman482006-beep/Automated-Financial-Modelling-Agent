@@ -35,6 +35,9 @@ test("Excel report generates formula-linked statement, DCF, comps and sensitivit
    if(includes)assert.ok(c.f.includes(includes),"Formula at "+sheet+"!"+cell+" should reference "+includes+"; got "+c.f);
   };
   formula("Inputs","B41","B38");
+  formula("Forecast BS","B6","Inputs'!$B$43");
+  formula("Forecast BS","B7","Inputs'!$B$43");
+  formula("Forecast BS","B11","Inputs'!$B$43");
   formula("Forecast IS","B5","Historical IS");
   formula("Forecast IS","B8","Inputs");
   formula("Forecast BS","B17","B10-B16");
@@ -57,12 +60,16 @@ test("Excel report generates formula-linked statement, DCF, comps and sensitivit
   assert.equal(wb.Sheets.Cover.B23.v,"TCS","NSE symbol should appear in the cover provenance section");
   assert.equal(wb.Props.Author,preparedBy,"Prepared-by name should be stored in Excel document properties");
   assert.equal(wb.Sheets.Inputs.B12.v,p.assumptions.revenueGrowth);
+  assert.equal(wb.Sheets.Inputs.B43.v,365,"Days per year should be stored once as an editable model convention.");
+  assert.equal(wb.Sheets.Ratios.B4.v,undefined,"Missing first-period revenue growth must not be cached as zero.");
   assert.equal(wb.Sheets.Inputs.B35.v,"Perpetuity growth");
   assert.equal(wb.Sheets.Checks.D4.v,"PASS","Check formulas should store readable PASS / REVIEW text");
   assert.equal(typeof wb.Sheets.Checks.D4.v,"string","Text formula results must remain text values");
   assert.ok(exportedWorkbook.Sheets.Inputs.B12.z.includes("[Red]"),"Negative assumption percentages should display in red");
   assert.ok(exportedWorkbook.Sheets["Forecast CF"].B9.z.includes("[Red]"),"Negative cash outflows should display in red");
+  assert.ok(exportedWorkbook.Sheets.Inputs.B3.s.font.color.rgb.endsWith("1F5FBF"),"Hard-coded model metadata should use blue font");
   assert.ok(exportedWorkbook.Sheets.Inputs.B12.s.font.color.rgb.endsWith("1F5FBF"),"Editable assumptions should use blue font");
+  assert.ok(exportedWorkbook.Sheets.Inputs.B43.s.font.color.rgb.endsWith("1F5FBF"),"The day-count convention should be an editable blue input.");
   assert.ok(exportedWorkbook.Sheets["Forecast IS"].B5.s.font.color.rgb.endsWith("008000"),"Cross-sheet formulas should use green font");
   assert.ok(wb.Sheets.FCF.A1.v.includes("Free cash flow"),"Dedicated FCF schedule should have a clear heading");
   const firstForecastCol=XLSX.utils.encode_col(p.history.periods.length+1);
