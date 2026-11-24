@@ -51,6 +51,9 @@ jobs:
           node --check app-main.js
           node --check universe.js
           node --check tests/browser.test.cjs
+          node --check tests/engine.test.cjs
+          node --check tests/workbook.test.cjs
+          node --check tests/universe.test.cjs
           node --check tests/excel-recalc.test.cjs
 
       - name: Install Chromium for browser tests
@@ -71,6 +74,7 @@ jobs:
           mkdir -p _site/vendor _site/sample-data
           cp index.html styles.css engine.js workbook.js app-main.js universe.js _site/
           cp sample-data/aster_industries.csv _site/sample-data/aster_industries.csv
+          cp sample-data/nse_nifty200_universe.csv _site/sample-data/nse_nifty200_universe.csv
           cp LICENSE README.md THIRD_PARTY_NOTICES.md _site/
           cp vendor/xlsx.full.min.js _site/vendor/xlsx.full.min.js
           cp vendor/SHEETJS-LICENSE _site/vendor/SHEETJS-LICENSE
