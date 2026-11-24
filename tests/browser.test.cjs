@@ -129,6 +129,7 @@ test("forecast, DCF and sensitivity tabs work in Chromium", async () => {
 test("generic operating forecast is blocked for banks and financial institutions", async () => {
   const { page, pageErrors } = await openPage();
   try {
+    await page.locator('#nav [data-page="data"]').click();
     const industry = page.locator("#industry");
     await industry.fill("Banks");
     await industry.dispatchEvent("change");
