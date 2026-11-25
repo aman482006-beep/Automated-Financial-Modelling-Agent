@@ -203,6 +203,33 @@ test("company-name lookup auto-fills NSE metadata and starts a clean model", asy
     assert.equal(project.profile.name, "An Unlisted Example Private Limited");
     assert.equal(project.profile.industry, "", "unknown industry must not be guessed");
     assert.match(await page.locator("#companyLookupStatus").innerText(), /Industry has been left blank rather than guessed/);
+
+    await page.locator("#companyName").fill("HDFC");
+    await page.locator("#companyName").dispatchEvent("change");
+    assert.equal((await page.evaluate(() => window.ModelForge.getProject())).profile.name, "An Unlisted Example Private Limited");
+    assert.match(await page.locator("#companyLookupStatus").innerText(), /More than one NSE company matches/);
+    assert.deepEqual(pageErrors, []);
+  } finally {
+    await page.close();
+  }
+});
+
+test("saved company profiles with a blank industry are hydrated from the NSE directory", async () => {
+  const { page, pageErrors } = await openPage();
+  try {
+    const project = await page.evaluate(() => window.ModelForge.getProject());
+    project.profile.name = "INFY";
+    project.profile.industry = "";
+    project.profile.symbol = "";
+    project.profile.exchange = "";
+    await page.evaluate(value => localStorage.setItem("modelforge.project.v2", JSON.stringify(value)), project);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => window.ModelForge.getProject().profile.industry === "Information Technology");
+    const hydrated = await page.evaluate(() => window.ModelForge.getProject());
+    assert.equal(hydrated.profile.name, "Infosys Ltd.");
+    assert.equal(hydrated.profile.symbol, "INFY");
+    assert.equal(hydrated.profile.exchange, "NSE");
+    assert.match(hydrated.importMeta.sourceNotes.join(" "), /Verify that those records belong to this issuer/);
     assert.deepEqual(pageErrors, []);
   } finally {
     await page.close();
