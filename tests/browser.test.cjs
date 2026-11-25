@@ -179,6 +179,36 @@ test("privacy and source-trace disclosures are visible in the data workspace", a
   }
 });
 
+test("company-name lookup auto-fills NSE metadata and starts a clean model", async () => {
+  const { page, pageErrors } = await openPage();
+  try {
+    page.on("dialog", dialog => dialog.accept());
+    await page.locator('#nav [data-page="data"]').click();
+    assert.equal(await page.locator("#companyName").getAttribute("list"), "companySuggestions");
+    await page.locator("#companyName").fill("INFY");
+    await page.locator("#companyName").dispatchEvent("change");
+    await page.waitForFunction(() => window.ModelForge.getProject().security?.symbol === "INFY");
+    let project = await page.evaluate(() => window.ModelForge.getProject());
+    assert.equal(project.profile.name, "Infosys Ltd.");
+    assert.equal(project.profile.industry, "Information Technology");
+    assert.equal(project.profile.symbol, "INFY");
+    assert.equal(project.profile.exchange, "NSE");
+    assert.equal(await page.locator("#industry").inputValue(), "Information Technology");
+    assert.match(await page.locator("#companyLookupStatus").innerText(), /Industry, symbol and exchange are auto-filled/);
+    assert.equal(project.history.IS.revenue[0], null, "changing companies must not carry over the demo financials");
+
+    await page.locator("#companyName").fill("An Unlisted Example Private Limited");
+    await page.locator("#companyName").dispatchEvent("change");
+    project = await page.evaluate(() => window.ModelForge.getProject());
+    assert.equal(project.profile.name, "An Unlisted Example Private Limited");
+    assert.equal(project.profile.industry, "", "unknown industry must not be guessed");
+    assert.match(await page.locator("#companyLookupStatus").innerText(), /Industry has been left blank rather than guessed/);
+    assert.deepEqual(pageErrors, []);
+  } finally {
+    await page.close();
+  }
+});
+
 test("mobile viewport can navigate and read the financial model", async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   try {
