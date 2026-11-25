@@ -4,6 +4,8 @@ const E=window.ModelEngine,$=s=>document.querySelector(s),$$=s=>Array.from(docum
 const KEY="modelforge.project.v2",symbols={INR:"₹",USD:"$",EUR:"€",GBP:"£",SGD:"S$"};
 const MAX_IMPORT_FILES=10,MAX_IMPORT_FILE_BYTES=20*1024*1024,MAX_TOTAL_IMPORT_BYTES=40*1024*1024,MAX_PROJECT_FILE_BYTES=10*1024*1024,MAX_IMPORT_RECORDS=250000,MAX_WORKSHEETS=30,MAX_WORKSHEET_ROWS=10000;
 let project=normaliseProject(loadSaved()||E.defaultProject()),forecast=[],ratios=[],valuation,modelStatus,noticeTimer,universeSize=100;
+let companyLookupTimer=null,companyLookupSequence=0;
+const wikidataSearchCache=new Map(),wikidataProfileCache=new Map(),wikidataNameCache=new Map();
 const EMPTY_VALUATION={valid:false,errors:["Complete the required historical inputs before calculating valuation."],wacc:null,costEquity:null,equityWeight:null,debtWeight:null,flows:[],pvForecast:null,terminalValue:null,pvTerminal:null,enterpriseValue:null,netDebt:null,equityValue:null,perShare:null};
 
 function normaliseProject(p){
@@ -328,14 +330,200 @@ function setCompanyLookupStatus(message){
  const el=$("#companyLookupStatus");
  if(el)el.textContent=message;
 }
+function renderCompanyLookupResults(results){
+ const host=$("#companyLookupResults");
+ if(!host)return;
+ const valid=(results||[]).filter(item=>/^Q[0-9]+$/.test(String(item.id||""))).slice(0,6);
+ host.hidden=!valid.length;
+ host.innerHTML=valid.map(item=>'<button type="button" class="company-lookup-result" data-wikidata-company="'+esc(item.id)+'"><span><b>'+esc(item.label||item.id)+'</b><small>'+esc(item.description||"Company profile · Wikidata")+'</small></span><i>Use match</i></button>').join("");
+}
+function currentCompanyLookup(query,sequence){
+ return sequence===companyLookupSequence&&companyLookupKey($("#companyName")?.value)===companyLookupKey(query);
+}
+async function searchWikidataCompanies(query){
+ const key=companyLookupKey(query);
+ if(wikidataSearchCache.has(key))return wikidataSearchCache.get(key);
+ const promise=(async()=>{
+  const params=new URLSearchParams({action:"wbsearchentities",search:query,language:"en",format:"json",origin:"*",limit:"8"});
+  const response=await fetch("https://www.wikidata.org/w/api.php?"+params.toString(),{headers:{Accept:"application/json"},credentials:"omit"});
+  if(!response.ok)throw new Error("Wikidata search returned HTTP "+response.status);
+  const payload=await response.json();
+  if(payload.error)throw new Error(payload.error.info||"Wikidata search failed");
+  return Array.isArray(payload.search)?payload.search:[];
+ })();
+ wikidataSearchCache.set(key,promise);
+ try{return await promise}catch(error){wikidataSearchCache.delete(key);throw error;}
+}
+async function fetchWikidataEntities(ids,props){
+ const clean=[...new Set((ids||[]).filter(id=>/^Q[0-9]+$/.test(String(id||""))))].slice(0,20);
+ if(!clean.length)return {};
+ const params=new URLSearchParams({action:"wbgetentities",ids:clean.join("|"),props,languages:"en",format:"json",origin:"*"});
+ const response=await fetch("https://www.wikidata.org/w/api.php?"+params.toString(),{headers:{Accept:"application/json"},credentials:"omit"});
+ if(!response.ok)throw new Error("Wikidata profile returned HTTP "+response.status);
+ const payload=await response.json();
+ if(payload.error)throw new Error(payload.error.info||"Wikidata profile lookup failed");
+ return payload.entities||{};
+}
+async function getWikidataCompanyProfile(entityId){
+ if(wikidataProfileCache.has(entityId))return wikidataProfileCache.get(entityId);
+ const promise=(async()=>{
+  if(!/^Q[0-9]+$/.test(String(entityId||"")))throw new Error("Invalid Wikidata company identifier");
+  const entities=await fetchWikidataEntities([entityId],"labels|descriptions|claims");
+  const entity=entities[entityId];
+  if(!entity||entity.missing!==undefined)throw new Error("Company profile was not found in Wikidata");
+  const claims=entity.claims||{};
+  const claimIds=property=>Array.from(new Set((claims[property]||[]).map(claim=>claim?.mainsnak?.datavalue?.value?.id).filter(Boolean)));
+  const industryIds=claimIds("P452"),exchangeIds=claimIds("P414");
+  const related=await fetchWikidataEntities([...industryIds,...exchangeIds],"labels");
+  const labels=ids=>ids.map(id=>related[id]?.labels?.en?.value||"").filter(Boolean);
+  const ticker=(claims.P249||[]).map(claim=>claim?.mainsnak?.datavalue?.value).map(value=>typeof value==="string"?value:(value?.text||"")).find(Boolean)||"";
+  return {
+   id:entityId,
+   name:entity.labels?.en?.value||entityId,
+   description:entity.descriptions?.en?.value||"",
+   industries:labels(industryIds),
+   symbol:String(ticker).trim().slice(0,30),
+   exchange:labels(exchangeIds).join(", "),
+   entityUrl:"https://www.wikidata.org/wiki/"+entityId
+  };
+ })();
+ wikidataProfileCache.set(entityId,promise);
+ try{return await promise}catch(error){wikidataProfileCache.delete(entityId);throw error;}
+}
+function exactWikidataMatches(query,results){
+ const key=companyLookupKey(query);
+ return (results||[]).filter(item=>companyLookupKey(item.label)===key);
+}
+async function previewWikidataCompany(query,sequence){
+ try{
+  const results=await searchWikidataCompanies(query);
+  if(!currentCompanyLookup(query,sequence))return;
+  const exact=exactWikidataMatches(query,results);
+  if(exact.length===1){
+   const profile=await getWikidataCompanyProfile(exact[0].id);
+   if(!currentCompanyLookup(query,sequence))return;
+   wikidataNameCache.set(companyLookupKey(query),profile);
+   const industry=profile.industries.join("; ");
+   if(industry)$("#industry").value=industry;
+   setCompanyLookupStatus(industry
+    ?"Industry auto-filled from Wikidata: "+industry+". Verify the company match before modelling."
+    :"Company matched in Wikidata, but no industry classification is recorded. Industry was left blank rather than guessed.");
+   renderCompanyLookupResults([]);
+   return;
+  }
+  if(results.length){
+   renderCompanyLookupResults(exact.length?exact:results);
+   setCompanyLookupStatus(exact.length
+    ?"More than one exact company match was found. Choose the correct result below."
+    :"Choose the correct company from the wider company search results below.");
+  }else{
+   renderCompanyLookupResults([]);
+   setCompanyLookupStatus("No match found in the wider company directory. Industry is left blank; you can enter it manually.");
+  }
+ }catch(error){
+  if(!currentCompanyLookup(query,sequence))return;
+  renderCompanyLookupResults([]);
+  setCompanyLookupStatus("Wider company lookup is unavailable right now. You can still enter the industry manually.");
+ }
+}
 function previewCompanyMetadata(value){
- const matches=findDirectoryMatches(value),industry=$("#industry");
+ const query=String(value||"").trim(),industry=$("#industry"),matches=findDirectoryMatches(query);
+ const sequence=++companyLookupSequence;
+ clearTimeout(companyLookupTimer);
+ renderCompanyLookupResults([]);
  if(matches.length===1){
   const company=matches[0];
   if(industry)industry.value=company.sector;
   setCompanyLookupStatus("Industry auto-filled: "+company.sector+" · "+company.symbol+". Finish entering or select the company to create its model.");
- }else if(matches.length>1){
-  setCompanyLookupStatus("Several companies match. Continue typing the full company name or exact NSE ticker.");
+  return;
+ }
+ if(matches.length>1){
+  if(companyLookupKey(query)!==companyLookupKey(project.profile?.name||"")&&industry)industry.value="";
+  setCompanyLookupStatus("Several NSE companies match. Continue typing the full company name or choose an exact ticker.");
+  return;
+ }
+ if(companyLookupKey(query)!==companyLookupKey(project.profile?.name||"")&&industry)industry.value="";
+ if(query.length<3){
+  setCompanyLookupStatus("Type at least 3 characters to search the wider company directory.");
+  return;
+ }
+ setCompanyLookupStatus("Searching the wider company directory…");
+ companyLookupTimer=setTimeout(()=>previewWikidataCompany(query,sequence),450);
+}
+function commitWikidataCompany(profile){
+ const name=profile.name||$("#companyName")?.value||"";
+ if(companyLookupKey(name)===companyLookupKey(project.profile?.name||"")){
+  const industries=profile.industries.join("; ");
+  project.profile.name=name;
+  project.profile.industry=industries;
+  if(profile.symbol)project.profile.symbol=profile.symbol;
+  if(profile.exchange)project.profile.exchange=profile.exchange;
+  project.security={name,symbol:profile.symbol||"",sector:industries,universeIndex:"Wikidata",asOf:new Date().toISOString().slice(0,10)};
+  project.importMeta.source="Wikidata company profile";
+  project.importMeta.sourceNotes=[...(project.importMeta.sourceNotes||[]),"Company metadata retrieved from Wikidata: "+profile.entityUrl,"Industry uses Wikidata's industry (P452) classification. No financial statements, price, market capitalisation or shares outstanding are supplied by this lookup."];
+  syncProfile();rebuild();persist();
+  setCompanyLookupStatus(industries
+   ?"Matched "+name+". Industry: "+industries+". Source: Wikidata."
+   :"Matched "+name+", but Wikidata has no industry classification for this record; industry remains blank.");
+  renderCompanyLookupResults([]);
+  return;
+ }
+ if(projectHasFinancialData()&&!window.confirm("Start a new blank model for "+name+"? This replaces the current company's figures and assumptions. Download a project backup first if you need to keep them.")){
+  syncProfile();setCompanyLookupStatus("Existing company and model data were kept. No changes were made.");renderCompanyLookupResults([]);return;
+ }
+ startCustomCompany(name,profile);
+}
+async function selectWikidataCompany(entityId){
+ const sequence=++companyLookupSequence;
+ setCompanyLookupStatus("Loading the selected company profile…");
+ try{
+  const profile=await getWikidataCompanyProfile(entityId);
+  if(sequence!==companyLookupSequence)return;
+  wikidataNameCache.set(companyLookupKey(profile.name),profile);
+  commitWikidataCompany(profile);
+ }catch(error){
+  setCompanyLookupStatus("Could not load this Wikidata company profile. Try another match or enter the industry manually.");
+ }
+}
+async function lookupAndCommitWikidataCompany(query){
+ const sequence=++companyLookupSequence;
+ clearTimeout(companyLookupTimer);
+ setCompanyLookupStatus("Searching the wider company directory…");
+ try{
+  const results=await searchWikidataCompanies(query);
+  if(!currentCompanyLookup(query,sequence))return;
+  const exact=exactWikidataMatches(query,results);
+  if(exact.length===1){
+   const profile=await getWikidataCompanyProfile(exact[0].id);
+   if(!currentCompanyLookup(query,sequence))return;
+   wikidataNameCache.set(companyLookupKey(query),profile);
+   commitWikidataCompany(profile);
+   return;
+  }
+  if(results.length){
+   renderCompanyLookupResults(exact.length?exact:results);
+   setCompanyLookupStatus("Several possible companies were found. Select the correct match below; no company data has been changed yet.");
+   return;
+  }
+  if(companyLookupKey(query)===companyLookupKey(project.profile?.name||"")&&project.profile.industry){
+   setCompanyLookupStatus("No wider directory match. Your existing company profile and industry were kept.");
+   return;
+  }
+  if(projectHasFinancialData()&&!window.confirm("No verified company match was found. Start a blank model for "+query+"? This replaces the current company's figures and assumptions.")){
+   syncProfile();setCompanyLookupStatus("Existing company and model data were kept. No changes were made.");return;
+  }
+  startCustomCompany(query);
+ }catch(error){
+  if(!currentCompanyLookup(query,sequence))return;
+  if(companyLookupKey(query)===companyLookupKey(project.profile?.name||"")&&project.profile.industry){
+   setCompanyLookupStatus("Wider company lookup is unavailable; your existing company profile was kept.");
+   return;
+  }
+  if(projectHasFinancialData()&&!window.confirm("The wider company lookup is unavailable. Start a blank model for "+query+" with an empty industry field? This replaces the current company's figures.")){
+   syncProfile();setCompanyLookupStatus("Existing company and model data were kept. No changes were made.");return;
+  }
+  startCustomCompany(query);
+  setCompanyLookupStatus("Wikidata could not be reached. A blank company profile was created; enter the industry manually and retry the lookup later.");
  }
 }
 function projectHasFinancialData(){
@@ -343,15 +531,23 @@ function projectHasFinancialData(){
   (project.history?.[group]?.[key]||[]).some(value=>value!==null&&value!==undefined&&value!=="")
  ))||(project.rawRecords||[]).length>0||(project.importMeta?.sourceFiles||[]).length>0;
 }
-function startCustomCompany(name){
+function startCustomCompany(name,externalProfile=null){
  const analyst=project.profile?.analyst||"Financial Analyst",today=new Date().toISOString().slice(0,10),year=today.slice(0,4),p=E.defaultProject();
- p.profile={...p.profile,name:String(name||"").trim().slice(0,120),analyst,industry:"",valuationDate:today,currency:"INR",unit:"crores",frequency:"Annual",sharesOutstanding:null,symbol:"",exchange:""};
+ const industries=Array.isArray(externalProfile?.industries)?externalProfile.industries:[];
+ const industry=industries.join("; ");
+ p.profile={...p.profile,name:String(name||"").trim().slice(0,120),analyst,industry,valuationDate:today,currency:"INR",unit:"crores",frequency:"Annual",sharesOutstanding:null,symbol:externalProfile?.symbol||"",exchange:externalProfile?.exchange||""};
  p.history=E.blankHistory(["FY"+year]);p.peers=[];p.rawRecords=[];p.mapping={};
  p.dcf={...p.dcf,riskFreeRate:null,equityRiskPremium:null,beta:null,costOfDebt:null,equityMarketValue:null,debtMarketValue:null,sharesOutstanding:null,perpetualGrowth:null,exitMultiple:null};
- p.importMeta={source:"Custom company profile",sourceFiles:[],importedAt:new Date().toISOString(),sourceNotes:["This company was not matched to the bundled NSE Nifty 100 / Nifty 200 directory. Industry must be entered manually. No financial statements, share price or market capitalisation have been preloaded."]};
+ p.importMeta={source:externalProfile?"Wikidata company profile":"Custom company profile",sourceFiles:[],importedAt:new Date().toISOString(),sourceNotes:externalProfile
+  ?["Company metadata retrieved from Wikidata: "+externalProfile.entityUrl,"Industry uses Wikidata's industry (P452) classification. No financial statements, price, market capitalisation or shares outstanding are supplied by this lookup.",...(industry?[]:["Wikidata has no industry (P452) classification for this company; industry was left blank rather than guessed."])]
+  :["This company was not matched to the bundled NSE Nifty 100 / Nifty 200 directory or the wider Wikidata company search. Industry must be entered manually. No financial statements, share price or market capitalisation have been preloaded."]};
  p.theme=project.theme||"light";delete p.security;
+ if(externalProfile)p.security={name:externalProfile.name,symbol:externalProfile.symbol||"",sector:industry,universeIndex:"Wikidata",asOf:today};
  project=normaliseProject(p);syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();persist();showPage("data");
- setCompanyLookupStatus("No match in the bundled NSE directory. Industry has been left blank rather than guessed; enter it manually or choose a listed-company match.");
+ setCompanyLookupStatus(externalProfile
+  ?(industry?"Company metadata loaded from Wikidata. Industry: "+industry+". Verify the source classification before modelling.":"Company matched in Wikidata, but no industry classification is published; enter it manually.")
+  :"No verified industry match was found. Industry is left blank rather than guessed; enter it manually.");
+ renderCompanyLookupResults([]);
  toast("New blank workspace created for "+project.profile.name+".");
 }
 function handleCompanyNameChange(value){
@@ -375,14 +571,14 @@ function handleCompanyNameChange(value){
   selectUniverseCompany(company.symbol);
   return;
  }
- if(name===project.profile.name){
-  setCompanyLookupStatus("No bundled NSE match. You can enter the industry manually.");
+ if(companyLookupKey(name)===companyLookupKey(project.profile?.name||"")&&project.profile.industry){
+  setCompanyLookupStatus("No bundled NSE match. Your existing industry was kept while the wider lookup is checked.");
+  lookupAndCommitWikidataCompany(name);
   return;
  }
- if(projectHasFinancialData()&&!window.confirm("Start a new blank model for "+name+"? This replaces the current company's figures and assumptions. Download a project backup first if you need to keep them.")){
-  syncProfile();setCompanyLookupStatus("Existing company and model data were kept. No changes were made.");return;
- }
- startCustomCompany(name);
+ const cached=wikidataNameCache.get(companyLookupKey(name));
+ if(cached){commitWikidataCompany(cached);return;}
+ lookupAndCommitWikidataCompany(name);
 }
 function hydrateSavedCompanyMetadata(){
  const company=findDirectoryCompany(project.profile?.name);
@@ -733,6 +929,10 @@ function bindEvents(){
   rebuild();renderAssumptions();renderWACC();persist();
  }));
  $("#companyName").addEventListener("input",e=>previewCompanyMetadata(e.target.value));
+ $("#companyLookupResults")?.addEventListener("click",event=>{
+  const button=event.target.closest("[data-wikidata-company]");
+  if(button)selectWikidataCompany(button.dataset.wikidataCompany);
+ });
  $("#themeSelect").addEventListener("change",e=>{project.theme=e.target.value;document.body.dataset.theme=project.theme;persist();drawCharts()});
  $("#historyStatement").addEventListener("change",renderHistoryEditor);
  $("#manualPeriodSelect").addEventListener("change",renderManualEntry);
