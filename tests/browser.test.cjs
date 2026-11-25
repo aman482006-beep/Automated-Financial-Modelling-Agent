@@ -186,6 +186,8 @@ test("company-name lookup auto-fills NSE metadata and starts a clean model", asy
     await page.locator('#nav [data-page="data"]').click();
     assert.equal(await page.locator("#companyName").getAttribute("list"), "companySuggestions");
     await page.locator("#companyName").fill("INFY");
+    assert.equal(await page.locator("#industry").inputValue(), "Information Technology", "industry should preview immediately while typing, before blur/change");
+    assert.match(await page.locator("#companyLookupStatus").innerText(), /Industry auto-filled/);
     await page.locator("#companyName").dispatchEvent("change");
     await page.waitForFunction(() => window.ModelForge.getProject().security?.symbol === "INFY");
     let project = await page.evaluate(() => window.ModelForge.getProject());
