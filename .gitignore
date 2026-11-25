@@ -33,3 +33,6 @@ Thumbs.db
 
 # Verified vendor bundles fetched from upstream project CDNs
 vendor/
+
+# Downloaded from the source CC0 dataset during CI / local prepare step
+sample-data/india-listed-company-profiles.csv
