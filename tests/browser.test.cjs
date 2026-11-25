@@ -224,6 +224,7 @@ test("saved company profiles with a blank industry are hydrated from the NSE dir
     project.profile.exchange = "";
     await page.evaluate(value => localStorage.setItem("modelforge.project.v2", JSON.stringify(value)), project);
     await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => Boolean(window.ModelForge));
     await page.waitForFunction(() => window.ModelForge.getProject().profile.industry === "Information Technology");
     const hydrated = await page.evaluate(() => window.ModelForge.getProject());
     assert.equal(hydrated.profile.name, "Infosys Ltd.");
