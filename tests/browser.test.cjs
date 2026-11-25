@@ -346,6 +346,74 @@ test("existing-company picker loads exactly 100 or 200 NSE constituents without 
   }
 });
 
+test("Screener upload auto-fills the company industry from the full listed-company index", async () => {
+  const { page, pageErrors } = await openPage();
+  try {
+    await page.waitForFunction(() => window.ModelForge.getCompanyDirectoryCount() >= 4000);
+    const rows = Array.from({ length: 85 }, () => []);
+    const put = (row, values) => { rows[row - 1] = values; };
+    put(1, ["COMPANY NAME", "TATA CONSULTANCY SERVICES LTD"]);
+    put(8, ["Current Price", 2488.3]);
+    put(9, ["Market Capitalization", 900288.69]);
+    put(15, ["PROFIT & LOSS"]);
+    put(16, ["Report Date", 42825, 43190]);
+    put(17, ["Sales", 117966, 123104]);
+    put(18, ["Raw Material Cost", 94, 86]);
+    put(21, ["Other Mfr. Exp", 2715, 2614]);
+    put(22, ["Employee Cost", 61621, 66396]);
+    put(23, ["Selling and admin", 16392, 16808]);
+    put(24, ["Other Expenses", 4834, 4684]);
+    put(25, ["Other Income", 4221, 3642]);
+    put(26, ["Depreciation", 1987, 2014]);
+    put(27, ["Interest", 32, 52]);
+    put(28, ["Profit before tax", 34513, 34092]);
+    put(29, ["Tax", 8156, 8212]);
+    put(30, ["Net profit", 26289, 25826]);
+    put(40, ["Quarters"]);
+    put(55, ["BALANCE SHEET"]);
+    put(56, ["Report Date", 42825, 43190]);
+    put(57, ["Equity Share Capital", 197, 191]);
+    put(58, ["Reserves", 86017, 84937]);
+    put(59, ["Borrowings", 289, 247]);
+    put(60, ["Other Liabilities", 15830, 19751]);
+    put(61, ["Total", 102333, 105126]);
+    put(62, ["Net Block", 11701, 11973]);
+    put(63, ["Capital Work in Progress", 1541, 1278]);
+    put(64, ["Investments", 41980, 36008]);
+    put(65, ["Other Assets", 47111, 55867]);
+    put(66, ["Total", 102333, 105126]);
+    put(67, ["Receivables", 22617, 24943]);
+    put(68, ["Inventory", 21, 26]);
+    put(69, ["Cash & Bank", 4149, 7161]);
+    put(70, ["No. of Equity Shares", 1970427941, 1914287591]);
+    put(80, ["CASH FLOW:"]);
+    put(81, ["Report Date", "42825.0", 43190]);
+    put(82, ["Cash from Operating Activity", 25223, 25067]);
+    put(83, ["Cash from Investing Activity", -16895, 3104]);
+    put(84, ["Cash from Financing Activity", -11026, -26885]);
+    put(85, ["Net Cash Flow", -2698, 1286]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Data Sheet");
+    const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    const chooserPromise = page.waitForEvent("filechooser");
+    await page.locator("#loadCompanyData").click();
+    const chooser = await chooserPromise;
+    await chooser.setFiles({ name: "TCS_Screener_Data.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer });
+    await page.waitForFunction(() => window.ModelForge.getProject().profile.industry === "Technology services");
+    const profile = await page.evaluate(() => window.ModelForge.getProject().profile);
+    assert.equal(profile.name, "Tata Consultancy Services Limited");
+    assert.equal(profile.industry, "Technology services");
+    assert.equal(profile.symbol, "TCS");
+    assert.equal(profile.exchange, "NSE");
+    assert.equal(await page.locator("#companyName").inputValue(), "Tata Consultancy Services Limited");
+    assert.equal(await page.locator("#industry").inputValue(), "Technology services");
+    assert.match(await page.locator("#sourceTrace").innerText(), /India listed-company profile index/);
+    assert.deepEqual(pageErrors, []);
+  } finally {
+    await page.close();
+  }
+});
+
 test("Load opens the file picker and imports multi-sheet Excel after title rows", async () => {
   const { page, pageErrors } = await openPage();
   try {
@@ -389,7 +457,7 @@ test("Load opens the file picker and imports multi-sheet Excel after title rows"
     assert.deepEqual(project.fcf, [120,135]);
     assert.equal(project.readiness, 0);
     assert.equal(project.profile.sharesOutstanding, null, "An uploaded workbook without a share count must not use a demo share count.");
-    assert.equal(await page.locator("#companyName").inputValue(), "ACME_Annual_Statements", "The company details panel should refresh to the imported company.");
+    assert.equal(await page.locator("#companyName").inputValue(), "ACME INDUSTRIES", "The issuer name should be read from the workbook title row.");
     assert.equal(await page.locator("#shares").inputValue(), "", "The company details panel must not show the Aster demo share count after importing another company.");
     assert.equal(project.assumptions.daysPerYear, 365);
     assert.ok(Math.abs(project.assumptions.revenueGrowth - 0.1) < 1e-10, "Revenue growth should be seeded from the two uploaded years.");
