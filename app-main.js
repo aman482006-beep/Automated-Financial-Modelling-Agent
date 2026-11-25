@@ -31,7 +31,7 @@ function normaliseProject(p){
   frequency:["Annual","Quarterly"].includes(sourceProfile.frequency)?sourceProfile.frequency:"Annual",
   sharesOutstanding:sourceProfile.sharesOutstanding===null||sourceProfile.sharesOutstanding===""?null:safeNumber(sourceProfile.sharesOutstanding,100),
   symbol:safeText(sourceProfile.symbol,"",30),
-  exchange:safeText(sourceProfile.exchange,"",20)
+  exchange:safeText(sourceProfile.exchange,"",100)
  };
  const old=p.history&&typeof p.history==="object"&&!Array.isArray(p.history)?p.history:{};
  let periods=Array.isArray(old.periods)?old.periods.slice(0,100).map(x=>safeText(x,"",40)).filter(Boolean):[];
