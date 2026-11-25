@@ -295,6 +295,77 @@ function renderCompanyUniverseNotice(){
  if(!security){el.hidden=true;el.innerHTML="";return;}
  el.hidden=false;el.innerHTML='<strong>Selected issuer:</strong> '+esc(security.name)+' ('+esc(security.symbol)+') · '+esc(security.universeIndex||"NSE index universe")+' · data snapshot '+esc(security.asOf||"—")+'. <strong>No financial statements or market quote are preloaded.</strong> Upload verified filings or a source workbook; the model remains blocked until required inputs reconcile.';
 }
+function companyLookupKey(value){
+ return String(value||"").toLowerCase()
+  .replace(/\b(?:limited|ltd|incorporated|inc|corporation|corp|company|co)\b/g," ")
+  .replace(/[^a-z0-9]/g,"");
+}
+function findDirectoryCompany(value){
+ const query=String(value||"").trim(),companies=window.ModelForgeUniverse?.companies||[];
+ if(!query||!companies.length)return null;
+ const key=companyLookupKey(query),symbol=query.toUpperCase().replace(/[^A-Z0-9&-]/g,"");
+ const exact=companies.find(company=>companyLookupKey(company.name)===key||company.symbol.toUpperCase()===symbol);
+ if(exact)return exact;
+ if(key.length<3&&symbol.length<3)return null;
+ const matches=companies.filter(company=>{
+  const name=companyLookupKey(company.name),ticker=company.symbol.toUpperCase();
+  return (key.length>=3&&(name.startsWith(key)||name.includes(key)))||(symbol.length>=3&&ticker.startsWith(symbol));
+ });
+ return matches.length===1?matches[0]:null;
+}
+function renderCompanySuggestions(){
+ const datalist=$("#companySuggestions"),companies=window.ModelForgeUniverse?.companies||[];
+ if(!datalist)return;
+ datalist.innerHTML=companies.flatMap(company=>[
+  '<option value="'+esc(company.name)+'" label="'+esc(company.symbol+" · "+company.sector)+'"></option>',
+  '<option value="'+esc(company.symbol)+'" label="'+esc(company.name+" · "+company.sector)+'"></option>'
+ ]).join("");
+}
+function setCompanyLookupStatus(message){
+ const el=$("#companyLookupStatus");
+ if(el)el.textContent=message;
+}
+function projectHasFinancialData(){
+ return Object.keys(E.ITEMS).some(group=>E.ITEMS[group].some(([key])=>
+  (project.history?.[group]?.[key]||[]).some(value=>value!==null&&value!==undefined&&value!=="")
+ ))||(project.rawRecords||[]).length>0||(project.importMeta?.sourceFiles||[]).length>0;
+}
+function startCustomCompany(name){
+ const analyst=project.profile?.analyst||"Financial Analyst",today=new Date().toISOString().slice(0,10),year=today.slice(0,4),p=E.defaultProject();
+ p.profile={...p.profile,name:String(name||"").trim().slice(0,120),analyst,industry:"",valuationDate:today,currency:"INR",unit:"crores",frequency:"Annual",sharesOutstanding:null,symbol:"",exchange:""};
+ p.history=E.blankHistory(["FY"+year]);p.peers=[];p.rawRecords=[];p.mapping={};
+ p.dcf={...p.dcf,riskFreeRate:null,equityRiskPremium:null,beta:null,costOfDebt:null,equityMarketValue:null,debtMarketValue:null,sharesOutstanding:null,perpetualGrowth:null,exitMultiple:null};
+ p.importMeta={source:"Custom company profile",sourceFiles:[],importedAt:new Date().toISOString(),sourceNotes:["This company was not matched to the bundled NSE Nifty 100 / Nifty 200 directory. Industry must be entered manually. No financial statements, share price or market capitalisation have been preloaded."]};
+ p.theme=project.theme||"light";delete p.security;
+ project=normaliseProject(p);syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();persist();showPage("data");
+ setCompanyLookupStatus("No match in the bundled NSE directory. Industry has been left blank rather than guessed; enter it manually or choose a listed-company match.");
+ toast("New blank workspace created for "+project.profile.name+".");
+}
+function handleCompanyNameChange(value){
+ const name=String(value||"").trim().slice(0,120);
+ if(!name){project.profile.name="";syncProfile();rebuild();persist();setCompanyLookupStatus("Enter a company name or NSE symbol.");return;}
+ const company=findDirectoryCompany(name);
+ if(company){
+  if(project.security?.symbol===company.symbol){
+   project.profile.name=company.name;project.profile.industry=company.sector;project.profile.symbol=company.symbol;project.profile.exchange="NSE";project.profile.currency="INR";
+   syncProfile();setCompanyLookupStatus("Matched "+company.symbol+" · "+company.sector+". Industry, symbol and exchange are auto-filled; financial statements and live prices are not included.");
+   rebuild();persist();return;
+  }
+  if(projectHasFinancialData()&&!window.confirm("Start a new blank model for "+company.name+"? This replaces the current company's figures and assumptions. Download a project backup first if you need to keep them.")){
+   syncProfile();setCompanyLookupStatus("Existing company and model data were kept. No changes were made.");return;
+  }
+  selectUniverseCompany(company.symbol);
+  return;
+ }
+ if(name===project.profile.name){
+  setCompanyLookupStatus("No bundled NSE match. You can enter the industry manually.");
+  return;
+ }
+ if(projectHasFinancialData()&&!window.confirm("Start a new blank model for "+name+"? This replaces the current company's figures and assumptions. Download a project backup first if you need to keep them.")){
+  syncProfile();setCompanyLookupStatus("Existing company and model data were kept. No changes were made.");return;
+ }
+ startCustomCompany(name);
+}
 function renderUniverse(){
  const api=window.ModelForgeUniverse,list=$("#universeResults"),summary=$("#universeSummary");if(!list||!summary)return;
  if(!api?.companies){summary.textContent="Company directory could not be loaded. Use Load to import a statement file.";list.innerHTML="";return;}
@@ -317,6 +388,7 @@ function selectUniverseCompany(symbol){
  p.security={name:company.name,symbol:company.symbol,sector:company.sector,exchange:"NSE",universeIndex:company.nifty100?"Nifty 100":"Nifty 200",nifty100:company.nifty100,asOf:window.ModelForgeUniverse.asOf};
  p.importMeta={source:"NSE Nifty 100 / Nifty 200 constituent directory",sourceFiles:[],importedAt:new Date().toISOString(),sourceNotes:[window.ModelForgeUniverse.financialDataNote,"Index membership is a universe filter, not a daily market-cap rank. Verify current constituents and identifiers against NSE before use.","No financial values, share price, market capitalisation or shares outstanding have been fabricated or prefilled."]};
  project=normaliseProject(p);syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();persist();showPage("data");
+ setCompanyLookupStatus("Matched "+company.symbol+" · "+company.sector+". Industry, symbol and exchange are auto-filled. Financial statements, share count and live prices are not included.");
  $("#companyUniverseNotice")?.scrollIntoView({behavior:"smooth",block:"center"});toast(company.name+" selected. Upload its verified financials to populate the model.");
 }
 
@@ -621,7 +693,11 @@ function resetAssumptions(){project.assumptions=clone(E.DEFAULT_ASSUMPTIONS);ren
 function bindEvents(){
  syncProfile();
  const pfields={companyName:"name",analystName:"analyst",industry:"industry",valuationDate:"valuationDate",currency:"currency",unit:"unit",frequency:"frequency",shares:"sharesOutstanding"};
- Object.entries(pfields).forEach(([id,key])=>$("#"+id).addEventListener("change",e=>{project.profile[key]=key==="sharesOutstanding"?(e.target.value===""?null:n(e.target.value)):e.target.value;rebuild();renderAssumptions();renderWACC();persist()}));
+ Object.entries(pfields).forEach(([id,key])=>$("#"+id).addEventListener("change",e=>{
+  if(key==="name"){handleCompanyNameChange(e.target.value);return;}
+  project.profile[key]=key==="sharesOutstanding"?(e.target.value===""?null:n(e.target.value)):e.target.value;
+  rebuild();renderAssumptions();renderWACC();persist();
+ }));
  $("#themeSelect").addEventListener("change",e=>{project.theme=e.target.value;document.body.dataset.theme=project.theme;persist();drawCharts()});
  $("#historyStatement").addEventListener("change",renderHistoryEditor);
  $("#manualPeriodSelect").addEventListener("change",renderManualEntry);
@@ -687,7 +763,7 @@ function bindEvents(){
  $("#resetDemo").addEventListener("click",()=>{if(confirm("Reset all changes and restore the sample project?"))loadSample()});
 }
 function init(){
- bindEvents();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();renderUniverse();
+ bindEvents();renderCompanySuggestions();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();renderUniverse();
  // Build forecast and valuation before showPage() redraws the active overview charts.
  rebuild();
  showPage("overview");
