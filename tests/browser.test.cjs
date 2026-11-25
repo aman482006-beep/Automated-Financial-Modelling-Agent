@@ -199,17 +199,74 @@ test("company-name lookup auto-fills NSE metadata and starts a clean model", asy
     assert.match(await page.locator("#companyLookupStatus").innerText(), /Industry, symbol and exchange are auto-filled/);
     assert.equal(project.history.IS.revenue[0], null, "changing companies must not carry over the demo financials");
 
+    await page.route("https://www.wikidata.org/w/api.php**", async route => {
+      const params = new URL(route.request().url()).searchParams;
+      if (params.get("action") === "wbsearchentities") {
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ search: [] }) });
+      } else {
+        await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ entities: {} }) });
+      }
+    });
     await page.locator("#companyName").fill("An Unlisted Example Private Limited");
+    await page.waitForFunction(() => /No match found in the wider company directory/.test(document.querySelector("#companyLookupStatus").textContent));
     await page.locator("#companyName").dispatchEvent("change");
+    await page.waitForFunction(() => window.ModelForge.getProject().profile.name === "An Unlisted Example Private Limited");
     project = await page.evaluate(() => window.ModelForge.getProject());
     assert.equal(project.profile.name, "An Unlisted Example Private Limited");
     assert.equal(project.profile.industry, "", "unknown industry must not be guessed");
-    assert.match(await page.locator("#companyLookupStatus").innerText(), /Industry has been left blank rather than guessed/);
+    assert.match(await page.locator("#companyLookupStatus").innerText(), /Industry is left blank rather than guessed/);
 
     await page.locator("#companyName").fill("HDFC");
     await page.locator("#companyName").dispatchEvent("change");
     assert.equal((await page.evaluate(() => window.ModelForge.getProject())).profile.name, "An Unlisted Example Private Limited");
     assert.match(await page.locator("#companyLookupStatus").innerText(), /More than one NSE company matches/);
+    assert.deepEqual(pageErrors, []);
+  } finally {
+    await page.close();
+  }
+});
+
+test("Wikidata fallback auto-fills industry and listing metadata outside the NSE 200 list", async () => {
+  const { page, pageErrors } = await openPage();
+  try {
+    page.on("dialog", dialog => dialog.accept());
+    await page.route("https://www.wikidata.org/w/api.php**", async route => {
+      const params = new URL(route.request().url()).searchParams;
+      let payload;
+      if (params.get("action") === "wbsearchentities") {
+        payload = { search: [{ id: "Q999001", label: "Nimbus Mobility", description: "Indian electric vehicle company" }] };
+      } else if (params.get("ids") === "Q999001") {
+        payload = { entities: { Q999001: {
+          id: "Q999001",
+          labels: { en: { value: "Nimbus Mobility" } },
+          descriptions: { en: { value: "Indian electric vehicle company" } },
+          claims: {
+            P452: [{ mainsnak: { datavalue: { value: { id: "Q999002" } } } }],
+            P249: [{ mainsnak: { datavalue: { value: "NIMBUS" } } }],
+            P414: [{ mainsnak: { datavalue: { value: { id: "Q999003" } } } }]
+          }
+        } } };
+      } else {
+        payload = { entities: {
+          Q999002: { labels: { en: { value: "Electric vehicle industry" } } },
+          Q999003: { labels: { en: { value: "National Stock Exchange of India" } } }
+        } };
+      }
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(payload) });
+    });
+    await page.locator('#nav [data-page="data"]').click();
+    await page.locator("#companyName").fill("Nimbus Mobility");
+    await page.waitForFunction(() => document.querySelector("#industry").value === "Electric vehicle industry");
+    assert.match(await page.locator("#companyLookupStatus").innerText(), /Industry auto-filled from Wikidata/);
+    await page.locator("#companyName").dispatchEvent("change");
+    await page.waitForFunction(() => window.ModelForge.getProject().security?.universeIndex === "Wikidata");
+    const project = await page.evaluate(() => window.ModelForge.getProject());
+    assert.equal(project.profile.name, "Nimbus Mobility");
+    assert.equal(project.profile.industry, "Electric vehicle industry");
+    assert.equal(project.profile.symbol, "NIMBUS");
+    assert.equal(project.profile.exchange, "National Stock Exchange of India");
+    assert.ok(project.importMeta.sourceNotes.join(" ").includes("wikidata.org/wiki/Q999001"));
+    assert.equal(project.history.IS.revenue[0], null, "external profile lookup must not fabricate financial statements");
     assert.deepEqual(pageErrors, []);
   } finally {
     await page.close();
