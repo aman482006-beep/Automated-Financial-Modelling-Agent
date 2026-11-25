@@ -19,7 +19,7 @@ New to the project? Follow the [10–15 minute user-testing guide](docs/USER_TES
 ## What it actually does
 
 - **Financial data intake:** CSV and Excel import, multiple worksheets, wide/long layouts, manual entry, editable field mapping and source metadata. User-uploaded workbooks are parsed with the patched SheetJS CE 0.20.3 reader; the legacy style-enabled library is isolated to report generation.
-- **Indian company lookup:** bundled NSE Nifty 100 / Nifty 200 issuer directory (200 unique securities, 100 Nifty 100 members; snapshot checked 6 Nov 2026), with searchable names, NSE symbols and sectors. Typing a company name or NSE symbol in the Company name field, or choosing it from the picker, auto-fills industry, symbol, exchange and INR currency. Switching companies starts a clean model rather than carrying forward another issuer's financials. Unknown firms are not assigned guessed industries.
+- **Company profile lookup:** the bundled NSE Nifty 100 / Nifty 200 directory (200 securities) instantly fills known Indian listed-company sectors, tickers and exchange details. For companies outside that list, the Company name field searches Wikidata's public API, reads its industry (P452) classification, and can also prefill a recorded ticker (P249) and exchange (P414). Search candidates are shown when a name is ambiguous. Coverage depends on Wikidata's community-maintained records; missing classifications remain blank rather than being guessed. A typed company search is sent to Wikidata; uploaded financial files and model data are not sent.
   - [Download the 200-company NSE directory (CSV)](sample-data/nse_nifty200_universe.csv). It includes company name, NSE symbol, sector and Nifty 100 / Nifty 200 membership flags only; it is not a market-data or financial-statement file.
 - **Screener.in workbook import:** detects a Data Sheet and maps supported annual financial items. Missing classifications remain missing; the importer does not invent zero values for undisclosed accounts payable or short-term debt.
 - **Historical review:** growth, margins, return ratios, liquidity, leverage, working capital and reported free cash flow where the required source fields exist.
@@ -31,6 +31,8 @@ New to the project? Follow the [10–15 minute user-testing guide](docs/USER_TES
 - **Investor frameworks:** portrait-led analytical checklists for Benjamin Graham, Warren Buffett, Charlie Munger and Peter Lynch. These are question prompts, not quotations or endorsements.
 - **Excel report:** one workbook with separate report tabs and formula-linked schedules; selected exports are self-contained value snapshots.
 - **Local project handling:** browser localStorage autosave, JSON project backup and restore.
+
+The wider company-name lookup uses Wikidata's public API when the bundled NSE directory has no match. It is an optional online metadata lookup: the entered company name is sent to Wikidata, while uploaded workbooks and financial model figures remain in the browser. Wikidata coverage is not exhaustive and its classifications should be checked against company filings before use.
 
 The assistant tab is a **deterministic, rule-based model explainer**. It answers from the active model values and formulas. It is not an LLM integration and does not require an API key.
 
