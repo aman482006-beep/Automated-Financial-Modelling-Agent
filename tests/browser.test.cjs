@@ -196,7 +196,7 @@ test("company-name lookup auto-fills NSE metadata and starts a clean model", asy
     assert.equal(project.profile.symbol, "INFY");
     assert.equal(project.profile.exchange, "NSE");
     assert.equal(await page.locator("#industry").inputValue(), "Information Technology");
-    assert.match(await page.locator("#companyLookupStatus").innerText(), /Industry, symbol and exchange are auto-filled/);
+    assert.match(await page.locator("#companyLookupStatus").innerText(), /Industry, ticker and exchange are auto-filled/);
     assert.equal(project.history.IS.revenue[0], null, "changing companies must not carry over the demo financials");
 
     await page.route("https://www.wikidata.org/w/api.php**", async route => {
@@ -399,9 +399,11 @@ test("Screener upload auto-fills the company industry from the full listed-compa
     await page.locator("#loadCompanyData").click();
     const chooser = await chooserPromise;
     await chooser.setFiles({ name: "TCS_Screener_Data.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer });
-    await page.waitForFunction(() => window.ModelForge.getProject().profile.industry === "Technology services");
+    await page.waitForFunction(() => /Imported|Import failed/.test(document.querySelector("#importStatus").textContent));
+    const importStatus = await page.locator("#importStatus").innerText();
     const profile = await page.evaluate(() => window.ModelForge.getProject().profile);
-    assert.equal(profile.name, "Tata Consultancy Services Limited");
+    assert.equal(profile.name, "Tata Consultancy Services Limited", "Importer status: " + importStatus);
+    assert.equal(profile.industry, "Technology services", "Importer status: " + importStatus + "; profile: " + JSON.stringify(profile));
     assert.equal(profile.industry, "Technology services");
     assert.equal(profile.symbol, "TCS");
     assert.equal(profile.exchange, "NSE");
