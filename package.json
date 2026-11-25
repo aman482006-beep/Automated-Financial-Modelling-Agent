@@ -9,7 +9,8 @@
     "test:engine": "node --test tests/engine.test.cjs tests/workbook.test.cjs",
     "test:browser": "node --test tests/browser.test.cjs",
     "test:excel": "node --test tests/excel-recalc.test.cjs",
-    "prepare:sheetjs": "node scripts/fetch-sheetjs.cjs"
+    "prepare:sheetjs": "node scripts/fetch-sheetjs.cjs",
+    "prepare:company-index": "node scripts/fetch-company-index.cjs"
   },
   "devDependencies": {
     "jszip": "3.10.1",
