@@ -4,7 +4,7 @@ const E=window.ModelEngine,$=s=>document.querySelector(s),$$=s=>Array.from(docum
 const KEY="modelforge.project.v2",symbols={INR:"₹",USD:"$",EUR:"€",GBP:"£",SGD:"S$"};
 const MAX_IMPORT_FILES=10,MAX_IMPORT_FILE_BYTES=20*1024*1024,MAX_TOTAL_IMPORT_BYTES=40*1024*1024,MAX_PROJECT_FILE_BYTES=10*1024*1024,MAX_IMPORT_RECORDS=250000,MAX_WORKSHEETS=30,MAX_WORKSHEET_ROWS=10000;
 let project=normaliseProject(loadSaved()||E.defaultProject()),forecast=[],ratios=[],valuation,modelStatus,noticeTimer,universeSize=100;
-let companyLookupTimer=null,companyLookupSequence=0;
+let companyLookupTimer=null,companyLookupSequence=0,companyProfileIndex=[],companyProfileIndexPromise=null;
 const wikidataSearchCache=new Map(),wikidataProfileCache=new Map(),wikidataNameCache=new Map();
 const EMPTY_VALUATION={valid:false,errors:["Complete the required historical inputs before calculating valuation."],wacc:null,costEquity:null,equityWeight:null,debtWeight:null,flows:[],pvForecast:null,terminalValue:null,pvTerminal:null,enterpriseValue:null,netDebt:null,equityValue:null,perShare:null};
 
@@ -302,12 +302,43 @@ function companyLookupKey(value){
   .replace(/\b(?:limited|ltd|incorporated|inc|corporation|corp|company|co)\b/g," ")
   .replace(/[^a-z0-9]/g,"");
 }
+async function ensureCompanyProfileIndex(){
+ if(companyProfileIndex.length)return companyProfileIndex;
+ if(companyProfileIndexPromise)return companyProfileIndexPromise;
+ companyProfileIndexPromise=(async()=>{
+  const response=await fetch("sample-data/india-listed-company-profiles.csv",{cache:"force-cache",credentials:"same-origin"});
+  if(!response.ok)throw new Error("The bundled India company profile index is unavailable (HTTP "+response.status+").");
+  const rows=E.parseCsv(await response.text());
+  const profiles=rows.map(row=>{
+   const name=String(row.name||"").trim(),symbol=String(row.ticker||"").trim().replace(/\s+/g,""),market=String(row.market||"").trim().toUpperCase(),sector=String(row.sector||"").trim();
+   if(!name||!symbol||!sector||!["NSE","BSE"].includes(market))return null;
+   return {name,symbol,sector,market,exchange:market,source:"India listed-company profile index",nifty100:false,nifty200:false};
+  }).filter(Boolean);
+  const bySymbol=new Map();
+  profiles.forEach(company=>{
+   const key=company.symbol.toUpperCase(),prior=bySymbol.get(key);
+   if(!prior||company.market==="NSE")bySymbol.set(key,company);
+  });
+  companyProfileIndex=Array.from(bySymbol.values());
+  if(companyProfileIndex.length<4000)throw new Error("The bundled India company index is incomplete ("+companyProfileIndex.length+" companies).");
+  return companyProfileIndex;
+ })().catch(error=>{companyProfileIndexPromise=null;throw error;});
+ return companyProfileIndexPromise;
+}
+function allDirectoryCompanies(){
+ const bySymbol=new Map();
+ companyProfileIndex.forEach(company=>bySymbol.set(company.symbol.toUpperCase(),company));
+ (window.ModelForgeUniverse?.companies||[]).forEach(company=>{
+  bySymbol.set(company.symbol.toUpperCase(),{...company,market:"NSE",exchange:"NSE",source:"NSE Nifty 100 / Nifty 200 directory"});
+ });
+ return Array.from(bySymbol.values());
+}
 function findDirectoryMatches(value){
- const query=String(value||"").trim(),companies=window.ModelForgeUniverse?.companies||[];
+ const query=String(value||"").trim(),companies=allDirectoryCompanies();
  if(!query||!companies.length)return [];
  const key=companyLookupKey(query),symbol=query.toUpperCase().replace(/[^A-Z0-9&-]/g,"");
- const exact=companies.find(company=>companyLookupKey(company.name)===key||company.symbol.toUpperCase()===symbol);
- if(exact)return [exact];
+ const exact=companies.filter(company=>companyLookupKey(company.name)===key||company.symbol.toUpperCase()===symbol);
+ if(exact.length)return exact;
  if(key.length<3&&symbol.length<3)return [];
  return companies.filter(company=>{
   const name=companyLookupKey(company.name),ticker=company.symbol.toUpperCase();
@@ -319,12 +350,41 @@ function findDirectoryCompany(value){
  return matches.length===1?matches[0]:null;
 }
 function renderCompanySuggestions(){
- const datalist=$("#companySuggestions"),companies=window.ModelForgeUniverse?.companies||[];
+ const datalist=$("#companySuggestions"),companies=allDirectoryCompanies();
  if(!datalist)return;
- datalist.innerHTML=companies.flatMap(company=>[
+ const suggestions=companies.slice(0,500);
+ datalist.innerHTML=suggestions.flatMap(company=>[
   '<option value="'+esc(company.name)+'" label="'+esc(company.symbol+" · "+company.sector)+'"></option>',
   '<option value="'+esc(company.symbol)+'" label="'+esc(company.name+" · "+company.sector)+'"></option>'
  ]).join("");
+}
+function directoryProfileForName(value){
+ const matches=findDirectoryMatches(value);
+ if(!matches.length)return null;
+ if(matches.length===1)return matches[0];
+ const exactName=matches.filter(company=>companyLookupKey(company.name)===companyLookupKey(value));
+ const preferred=exactName.length?exactName:matches;
+ return preferred.find(company=>company.market==="NSE")||preferred[0]||null;
+}
+async function resolveImportedCompanyMetadata(companyName){
+ const local=directoryProfileForName(companyName);
+ if(local)return {name:local.name,industry:local.sector,symbol:local.symbol,exchange:local.exchange||local.market||"NSE",source:local.source||"India listed-company profile index"};
+ const cached=wikidataNameCache.get(companyLookupKey(companyName));
+ if(cached)return {name:cached.name,industry:cached.industries.join("; "),symbol:cached.symbol,exchange:cached.exchange,source:"Wikidata",entityUrl:cached.entityUrl};
+ try{
+  const results=await searchWikidataCompanies(companyName);
+  const exact=exactWikidataMatches(companyName,results);
+  if(exact.length===1){
+   const profile=await getWikidataCompanyProfile(exact[0].id);
+   wikidataNameCache.set(companyLookupKey(companyName),profile);
+   return {name:profile.name,industry:profile.industries.join("; "),symbol:profile.symbol,exchange:profile.exchange,source:"Wikidata",entityUrl:profile.entityUrl};
+  }
+ }catch(error){}
+ return null;
+}
+function renderCompanySuggestionsStatus(){
+ const status=$("#companyLookupStatus");
+ if(status&&companyProfileIndex.length)status.textContent="Loaded "+companyProfileIndex.length.toLocaleString()+" Indian NSE/BSE company profiles. Type a company name or ticker to auto-fill its sector/industry.";
 }
 function setCompanyLookupStatus(message){
  const el=$("#companyLookupStatus");
