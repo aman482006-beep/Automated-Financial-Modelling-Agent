@@ -300,17 +300,20 @@ function companyLookupKey(value){
   .replace(/\b(?:limited|ltd|incorporated|inc|corporation|corp|company|co)\b/g," ")
   .replace(/[^a-z0-9]/g,"");
 }
-function findDirectoryCompany(value){
+function findDirectoryMatches(value){
  const query=String(value||"").trim(),companies=window.ModelForgeUniverse?.companies||[];
- if(!query||!companies.length)return null;
+ if(!query||!companies.length)return [];
  const key=companyLookupKey(query),symbol=query.toUpperCase().replace(/[^A-Z0-9&-]/g,"");
  const exact=companies.find(company=>companyLookupKey(company.name)===key||company.symbol.toUpperCase()===symbol);
- if(exact)return exact;
- if(key.length<3&&symbol.length<3)return null;
- const matches=companies.filter(company=>{
+ if(exact)return [exact];
+ if(key.length<3&&symbol.length<3)return [];
+ return companies.filter(company=>{
   const name=companyLookupKey(company.name),ticker=company.symbol.toUpperCase();
   return (key.length>=3&&(name.startsWith(key)||name.includes(key)))||(symbol.length>=3&&ticker.startsWith(symbol));
  });
+}
+function findDirectoryCompany(value){
+ const matches=findDirectoryMatches(value);
  return matches.length===1?matches[0]:null;
 }
 function renderCompanySuggestions(){
@@ -344,7 +347,12 @@ function startCustomCompany(name){
 function handleCompanyNameChange(value){
  const name=String(value||"").trim().slice(0,120);
  if(!name){project.profile.name="";syncProfile();rebuild();persist();setCompanyLookupStatus("Enter a company name or NSE symbol.");return;}
- const company=findDirectoryCompany(name);
+ const matches=findDirectoryMatches(name);
+ if(matches.length>1){
+  syncProfile();setCompanyLookupStatus("More than one NSE company matches. Choose the full company name or exact ticker from the suggestions; nothing has been changed.");
+  return;
+ }
+ const company=matches[0]||null;
  if(company){
   if(project.security?.symbol===company.symbol){
    project.profile.name=company.name;project.profile.industry=company.sector;project.profile.symbol=company.symbol;project.profile.exchange="NSE";project.profile.currency="INR";
@@ -365,6 +373,22 @@ function handleCompanyNameChange(value){
   syncProfile();setCompanyLookupStatus("Existing company and model data were kept. No changes were made.");return;
  }
  startCustomCompany(name);
+}
+function hydrateSavedCompanyMetadata(){
+ const company=findDirectoryCompany(project.profile?.name);
+ if(!company)return false;
+ const needsMetadata=!project.profile.industry||!project.profile.symbol||!project.profile.exchange;
+ if(!needsMetadata)return false;
+ project.profile.name=company.name;project.profile.industry=company.sector;project.profile.symbol=company.symbol;project.profile.exchange="NSE";project.profile.currency="INR";
+ project.security={name:company.name,symbol:company.symbol,sector:company.sector,exchange:"NSE",universeIndex:company.nifty100?"Nifty 100":"Nifty 200",nifty100:company.nifty100,asOf:window.ModelForgeUniverse.asOf};
+ if(projectHasFinancialData()){
+  const notes=project.importMeta.sourceNotes||[];
+  const warning="Company metadata was matched from the bundled NSE directory; existing financial records were preserved. Verify that those records belong to this issuer before using forecasts or valuations.";
+  if(!notes.includes(warning))notes.push(warning);
+  project.importMeta.sourceNotes=notes;
+ }
+ syncProfile();setCompanyLookupStatus("Matched saved company "+company.symbol+" · "+company.sector+". Industry metadata was filled; verify any existing financial data belong to this issuer.");
+ return true;
 }
 function renderUniverse(){
  const api=window.ModelForgeUniverse,list=$("#universeResults"),summary=$("#universeSummary");if(!list||!summary)return;
@@ -763,7 +787,7 @@ function bindEvents(){
  $("#resetDemo").addEventListener("click",()=>{if(confirm("Reset all changes and restore the sample project?"))loadSample()});
 }
 function init(){
- bindEvents();renderCompanySuggestions();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();renderUniverse();
+ bindEvents();renderCompanySuggestions();if(hydrateSavedCompanyMetadata())persist();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();renderUniverse();
  // Build forecast and valuation before showPage() redraws the active overview charts.
  rebuild();
  showPage("overview");
