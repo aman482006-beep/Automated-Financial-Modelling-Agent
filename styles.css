@@ -336,3 +336,13 @@ a:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
 /* Downloadable company-universe data */
 .universe-download{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:13px}
 .universe-download small{max-width:520px;color:var(--muted);font-size:10px;line-height:1.5}
+
+/* Wider company lookup results */
+.company-lookup-results{display:grid;gap:6px;margin-top:4px;min-width:0}
+.company-lookup-result{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:7px;background:var(--surface-2);color:var(--ink);text-align:left}
+.company-lookup-result:hover{border-color:var(--blue);background:var(--blue-soft)}
+.company-lookup-result span{display:grid;gap:3px;min-width:0}
+.company-lookup-result b{font-size:10px;font-weight:650}
+.company-lookup-result small{font-size:9px;font-weight:400;color:var(--muted);line-height:1.45}
+.company-lookup-result i{font:600 9px Inter,ui-sans-serif,system-ui,sans-serif;color:var(--blue);font-style:normal;white-space:nowrap}
+@media(max-width:600px){.company-lookup-result{align-items:flex-start}.company-lookup-result i{padding-top:2px}}
