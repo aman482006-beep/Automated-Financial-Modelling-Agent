@@ -455,16 +455,19 @@ function commitWikidataCompany(profile){
  if(companyLookupKey(name)===companyLookupKey(project.profile?.name||"")){
   const industries=profile.industries.join("; ");
   project.profile.name=name;
-  project.profile.industry=industries;
+  if(industries)project.profile.industry=industries;
   if(profile.symbol)project.profile.symbol=profile.symbol;
   if(profile.exchange)project.profile.exchange=profile.exchange;
-  project.security={name,symbol:profile.symbol||"",sector:industries,universeIndex:"Wikidata",asOf:new Date().toISOString().slice(0,10)};
+  const finalIndustry=project.profile.industry||"";
+  project.security={name,symbol:profile.symbol||"",sector:finalIndustry,universeIndex:"Wikidata",asOf:new Date().toISOString().slice(0,10)};
   project.importMeta.source="Wikidata company profile";
-  project.importMeta.sourceNotes=[...(project.importMeta.sourceNotes||[]),"Company metadata retrieved from Wikidata: "+profile.entityUrl,"Industry uses Wikidata's industry (P452) classification. No financial statements, price, market capitalisation or shares outstanding are supplied by this lookup."];
+  project.importMeta.sourceNotes=[...(project.importMeta.sourceNotes||[]),"Company metadata retrieved from Wikidata: "+profile.entityUrl,"Industry uses Wikidata's industry (P452) classification when present. Missing classifications do not overwrite a manually entered industry. No financial statements, price, market capitalisation or shares outstanding are supplied by this lookup."];
   syncProfile();rebuild();persist();
   setCompanyLookupStatus(industries
    ?"Matched "+name+". Industry: "+industries+". Source: Wikidata."
-   :"Matched "+name+", but Wikidata has no industry classification for this record; industry remains blank.");
+   :finalIndustry
+    ?"No Wikidata industry classification was recorded; your existing industry was kept."
+    :"Matched "+name+", but Wikidata has no industry classification for this record; industry remains blank.");
   renderCompanyLookupResults([]);
   return;
  }
