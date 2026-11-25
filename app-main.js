@@ -328,6 +328,16 @@ function setCompanyLookupStatus(message){
  const el=$("#companyLookupStatus");
  if(el)el.textContent=message;
 }
+function previewCompanyMetadata(value){
+ const matches=findDirectoryMatches(value),industry=$("#industry");
+ if(matches.length===1){
+  const company=matches[0];
+  if(industry)industry.value=company.sector;
+  setCompanyLookupStatus("Industry auto-filled: "+company.sector+" · "+company.symbol+". Finish entering or select the company to create its model.");
+ }else if(matches.length>1){
+  setCompanyLookupStatus("Several companies match. Continue typing the full company name or exact NSE ticker.");
+ }
+}
 function projectHasFinancialData(){
  return Object.keys(E.ITEMS).some(group=>E.ITEMS[group].some(([key])=>
   (project.history?.[group]?.[key]||[]).some(value=>value!==null&&value!==undefined&&value!=="")
@@ -722,6 +732,7 @@ function bindEvents(){
   project.profile[key]=key==="sharesOutstanding"?(e.target.value===""?null:n(e.target.value)):e.target.value;
   rebuild();renderAssumptions();renderWACC();persist();
  }));
+ $("#companyName").addEventListener("input",e=>previewCompanyMetadata(e.target.value));
  $("#themeSelect").addEventListener("change",e=>{project.theme=e.target.value;document.body.dataset.theme=project.theme;persist();drawCharts()});
  $("#historyStatement").addEventListener("change",renderHistoryEditor);
  $("#manualPeriodSelect").addEventListener("change",renderManualEntry);
