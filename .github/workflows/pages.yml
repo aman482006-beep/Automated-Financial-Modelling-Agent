@@ -43,6 +43,8 @@ jobs:
 
       - name: Fetch and verify patched SheetJS workbook reader
         run: npm run prepare:sheetjs
+      - name: Fetch India listed-company profile index
+        run: npm run prepare:company-index
 
       - name: Validate JavaScript source
         run: |
@@ -75,6 +77,7 @@ jobs:
           cp index.html styles.css engine.js workbook.js app-main.js universe.js _site/
           cp sample-data/aster_industries.csv _site/sample-data/aster_industries.csv
           cp sample-data/nse_nifty200_universe.csv _site/sample-data/nse_nifty200_universe.csv
+          cp sample-data/india-listed-company-profiles.csv _site/sample-data/india-listed-company-profiles.csv
           cp LICENSE README.md THIRD_PARTY_NOTICES.md _site/
           cp vendor/xlsx.full.min.js _site/vendor/xlsx.full.min.js
           cp vendor/SHEETJS-LICENSE _site/vendor/SHEETJS-LICENSE
