@@ -779,9 +779,42 @@ async function fileArrayBuffer(file){
   reader.readAsArrayBuffer(file);
  });
 }
+function detectCompanyNameFromMatrix(matrix){
+ if(!Array.isArray(matrix))return "";
+ const labels=new Set(["companyname","company","issuer","issuername","entityname","nameofcompany"]);
+ for(const row of matrix.slice(0,40)){
+  const label=E.normaliseLabel(row?.[0]??"");
+  if(labels.has(label)){
+   const candidate=String(row?.[1]??"").trim();
+   if(candidate)return candidate.slice(0,120);
+  }
+  const title=String(row?.[0]??"").trim();
+  const match=title.match(/^(.+?)\s*[·|–—]\s*(?:historical financials?|financial statements?|annual financials?|annual statements?)/i);
+  if(match?.[1])return match[1].trim().slice(0,120);
+ }
+ return "";
+}
+function detectCompanyNameFromObjects(rows){
+ if(!Array.isArray(rows)||!rows.length)return "";
+ for(const row of rows.slice(0,10)){
+  if(!row||typeof row!=="object")continue;
+  for(const [key,value] of Object.entries(row)){
+   if(["companyname","company","issuer","issuername","entityname","nameofcompany"].includes(E.normaliseLabel(key))){
+    const candidate=String(value??"").trim();
+    if(candidate)return candidate.slice(0,120);
+   }
+  }
+ }
+ return "";
+}
+function companyNameFromFileName(file){
+ return String(file?.name||"").replace(/\.(csv|xlsx|xls)$/i,"").replace(/[._]+/g," ").replace(/\s+/g," ").trim().slice(0,120);
+}
 async function importStatements(files){
  window.ModelForgeLastImportNotes=[];
  if(!files.length)return;
+ try{await ensureCompanyProfileIndex();renderCompanySuggestions();}catch(error){setImportStatus("Company profile index could not be loaded. Financial statements can still be imported; industry may need manual entry.",true);}
+ let uploadedCompanyName="";
  if(files.length>MAX_IMPORT_FILES)throw new Error("Upload no more than "+MAX_IMPORT_FILES+" files at once.");
  const totalBytes=files.reduce((sum,file)=>sum+(Number(file.size)||0),0);
  if(files.some(file=>(Number(file.size)||0)>MAX_IMPORT_FILE_BYTES))throw new Error("Each CSV or Excel file must be 20 MB or smaller.");
@@ -791,7 +824,9 @@ async function importStatements(files){
  for(const file of files){
   const ext=file.name.split(".").pop().toLowerCase();
   if(ext==="csv"){
-   records=records.concat(E.recordsFromRows(parseCsv(await file.text()),"",file.name));
+   const parsedRows=parseCsv(await file.text());
+   uploadedCompanyName=uploadedCompanyName||detectCompanyNameFromObjects(parsedRows);
+   records=records.concat(E.recordsFromRows(parsedRows,"",file.name));
    filesLoaded++;
   }else if(["xlsx","xls"].includes(ext)){
    const XLSXLib=window.ModelForgeXLSXReader;
@@ -812,6 +847,7 @@ async function importStatements(files){
    let detectedScreener=false;
    for(const name of orderedSheets){
     const matrix=XLSXLib.utils.sheet_to_json(workbook.Sheets[name],{header:1,defval:null,raw:true,blankrows:true});
+    uploadedCompanyName=uploadedCompanyName||detectCompanyNameFromMatrix(matrix);
     const parsed=E.parseScreenerDataSheet(matrix);
     if(parsed?.records?.length){screenerImport=parsed;records=records.concat(parsed.records);detectedScreener=true;break;}
    }
@@ -824,16 +860,20 @@ async function importStatements(files){
   if(records.length>MAX_IMPORT_RECORDS)throw new Error("The selected files contain more than "+MAX_IMPORT_RECORDS+" financial records. Split the statements into smaller imports.");
  }
  if(!records.length)throw new Error("No financial values were found in "+files.map(f=>f.name).join(", ")+". For Screener.in exports, keep the Data Sheet content intact. Other workbooks need Period/Year and line-item headers, or Period, Statement, Item and Value columns.");
+ const detectedCompanyName=String(screenerImport?.companyName||uploadedCompanyName||companyNameFromFileName(files[0])).trim()||"Imported financial data";
+ const matchedCompany=await resolveImportedCompanyMetadata(detectedCompanyName);
+ const matchedIndustry=matchedCompany?.industry||"";
+ const matchedName=matchedCompany?.name||detectedCompanyName;
  if(screenerImport){
   const fresh=E.defaultProject();
-  fresh.profile={...fresh.profile,name:screenerImport.companyName||files[0].name.replace(/\.(xlsx|xls)$/i,""),analyst:"Financial Analyst",industry:"",valuationDate:screenerImport.latestDate||fresh.profile.valuationDate,currency:screenerImport.currency||"INR",unit:screenerImport.unit||"crores",frequency:"Annual",sharesOutstanding:screenerImport.sharesOutstandingCrores??null};
+  fresh.profile={...fresh.profile,name:matchedName,analyst:"Financial Analyst",industry:matchedIndustry,valuationDate:screenerImport.latestDate||fresh.profile.valuationDate,currency:screenerImport.currency||"INR",unit:screenerImport.unit||"crores",frequency:"Annual",sharesOutstanding:screenerImport.sharesOutstandingCrores??null,symbol:matchedCompany?.symbol||"",exchange:matchedCompany?.exchange||""};
   fresh.history=E.historyFromRecords(records,{});
   fresh.rawRecords=records;
   fresh.mapping={};
   records.forEach(record=>{if(record.mapped)fresh.mapping[record.label]=record.mapped;});
   fresh.peers=[];
   fresh.dcf={...fresh.dcf,riskFreeRate:null,equityRiskPremium:null,beta:null,costOfDebt:null,equityMarketValue:Number.isFinite(screenerImport.marketCapCrores)?screenerImport.marketCapCrores:null,debtMarketValue:null,sharesOutstanding:fresh.profile.sharesOutstanding,perpetualGrowth:null,exitMultiple:null};
-  fresh.importMeta={source:screenerImport.source,sourceFiles:files.map(file=>file.name),importedAt:new Date().toISOString(),currentPrice:screenerImport.currentPrice,marketCapCrores:screenerImport.marketCapCrores,latestPeriod:screenerImport.latestPeriod,sourceNotes:screenerImport.sourceNotes||[]};
+  fresh.importMeta={source:screenerImport.source,sourceFiles:files.map(file=>file.name),importedAt:new Date().toISOString(),currentPrice:screenerImport.currentPrice,marketCapCrores:screenerImport.marketCapCrores,latestPeriod:screenerImport.latestPeriod,sourceNotes:[...(screenerImport.sourceNotes||[]),...(matchedCompany?["Company industry and listing metadata auto-matched from "+matchedCompany.source+": "+matchedCompany.industry+". Verify against the company's latest disclosures."]:["No exact company match was found in the bundled listed-company directory or Wikidata. Industry remains blank rather than being guessed."])]};
   project=normaliseProject(fresh);
   seedAssumptionsFromImportedHistory(project,screenerImport);
   const importedDebt=(project.history.BS.shortDebt.at(-1)||0)+(project.history.BS.longDebt.at(-1)||0),importedInterest=project.history.IS.interestExpense.at(-1);
@@ -845,15 +885,18 @@ async function importStatements(files){
   renderAssumptions();renderWACC();renderTerminal();
  }else{
   const fresh=E.defaultProject(),previousProfile=project.profile,selectedSecurity=project.security;
-  fresh.profile={...fresh.profile,name:selectedSecurity?.name||(files.length===1?files[0].name.replace(/\.(csv|xlsx|xls)$/i,""):"Imported financial data"),analyst:previousProfile.analyst||"Financial Analyst",industry:selectedSecurity?.sector||previousProfile.industry||"",valuationDate:previousProfile.valuationDate||fresh.profile.valuationDate,currency:previousProfile.currency||"INR",unit:previousProfile.unit||"millions",frequency:previousProfile.frequency||"Annual",sharesOutstanding:null,symbol:selectedSecurity?.symbol||"",exchange:selectedSecurity?.exchange||""};
+  const selectedMatches=Boolean(selectedSecurity&&companyLookupKey(selectedSecurity.name)===companyLookupKey(detectedCompanyName));
+  const selectedForImport=selectedMatches?selectedSecurity:null;
+  const samePreviousCompany=companyLookupKey(previousProfile?.name)===companyLookupKey(detectedCompanyName);
+  fresh.profile={...fresh.profile,name:selectedForImport?.name||matchedName,analyst:previousProfile.analyst||"Financial Analyst",industry:selectedForImport?.sector||matchedIndustry||(samePreviousCompany?previousProfile.industry||"":""),valuationDate:previousProfile.valuationDate||fresh.profile.valuationDate,currency:previousProfile.currency||"INR",unit:previousProfile.unit||"millions",frequency:previousProfile.frequency||"Annual",sharesOutstanding:null,symbol:selectedForImport?.symbol||matchedCompany?.symbol||"",exchange:selectedForImport?.exchange||matchedCompany?.exchange||""};
   fresh.dcf={...fresh.dcf,riskFreeRate:null,equityRiskPremium:null,beta:null,costOfDebt:null,equityMarketValue:null,debtMarketValue:null,sharesOutstanding:null,perpetualGrowth:null,exitMultiple:null};
   fresh.assumptions.annualDebtRepayment=0;fresh.assumptions.dividendPayout=0;
-  if(selectedSecurity)fresh.security=selectedSecurity;
+  if(selectedForImport)fresh.security=selectedForImport;
   fresh.rawRecords=records;
   fresh.mapping={};
   Array.from(new Set(records.map(r=>r.label))).forEach(label=>{fresh.mapping[label]=E.mapLabel(label)||"ignore";});
   fresh.history=E.historyFromRecords(records,fresh.mapping);
-  fresh.importMeta={source:"User-provided CSV / Excel",sourceFiles:files.map(file=>file.name),importedAt:new Date().toISOString(),sourceNotes:["Source figures were supplied by the user. Verify every mapped value against the original filing; the app does not independently fetch or verify financial statements.",...(window.ModelForgeLastImportNotes||[]),...(fresh.security?["Uploaded workbook has not been independently authenticated as belonging to the selected NSE security. Check issuer name, symbol, reporting entity and period."]:[])]};
+  fresh.importMeta={source:"User-provided CSV / Excel",sourceFiles:files.map(file=>file.name),importedAt:new Date().toISOString(),sourceNotes:["Source figures were supplied by the user. Verify every mapped value against the original filing; the app does not independently fetch or verify financial statements.",...(matchedCompany?["Company profile auto-matched from "+matchedCompany.source+": "+(matchedCompany.industry||"industry not listed")+". Check that the uploaded financial statements belong to "+fresh.profile.name+"."]:["No company-profile match was found. The uploaded financial statements are retained, but industry remains blank until entered or verified."] ),...(window.ModelForgeLastImportNotes||[]),...(selectedSecurity&&!selectedMatches?["The selected directory company did not match the company name detected in the uploaded file. The upload's own company profile was used; verify issuer identity."]:[])]};
   project=normaliseProject(fresh);
   seedAssumptionsFromImportedHistory(project,project.importMeta);
   const debt=(project.history.BS.shortDebt.at(-1)||0)+(project.history.BS.longDebt.at(-1)||0),interest=project.history.IS.interestExpense.at(-1);
