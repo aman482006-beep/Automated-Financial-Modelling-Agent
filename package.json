@@ -13,7 +13,7 @@
     "prepare:company-index": "node scripts/fetch-company-index.cjs"
   },
   "devDependencies": {
-    "jszip": "3.10.1",
+    "jszip": "3.10.2",
     "playwright": "1.65.0",
     "xlsx-js-style": "1.2.0"
   }
