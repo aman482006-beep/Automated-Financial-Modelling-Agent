@@ -346,3 +346,4 @@ a:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
 .company-lookup-result small{font-size:9px;font-weight:400;color:var(--muted);line-height:1.45}
 .company-lookup-result i{font:600 9px Inter,ui-sans-serif,system-ui,sans-serif;color:var(--blue);font-style:normal;white-space:nowrap}
 @media(max-width:600px){.company-lookup-result{align-items:flex-start}.company-lookup-result i{padding-top:2px}}
+.company-profile-field{display:grid;gap:6px;min-width:0}.company-lookup-results[hidden]{display:none}
