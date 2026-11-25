@@ -491,15 +491,24 @@ function previewCompanyMetadata(value){
  const sequence=++companyLookupSequence;
  clearTimeout(companyLookupTimer);
  renderCompanyLookupResults([]);
+ if(!companyProfileIndex.length&&!companyProfileIndexPromise){
+  if(query.length>=2){
+   setCompanyLookupStatus("Loading the full Indian listed-company index…");
+   ensureCompanyProfileIndex().then(()=>{
+    if(currentCompanyLookup(query,sequence)){renderCompanySuggestions();previewCompanyMetadata(query);}
+   }).catch(()=>{if(currentCompanyLookup(query,sequence))previewWikidataCompany(query,sequence);});
+  }
+  return;
+ }
  if(matches.length===1){
   const company=matches[0];
   if(industry)industry.value=company.sector;
-  setCompanyLookupStatus("Industry auto-filled: "+company.sector+" · "+company.symbol+". Finish entering or select the company to create its model.");
+  setCompanyLookupStatus("Industry auto-filled: "+company.sector+" · "+company.symbol+" · "+(company.exchange||company.market||"NSE/BSE")+". Finish entering or select the company to create its model.");
   return;
  }
  if(matches.length>1){
   if(companyLookupKey(query)!==companyLookupKey(project.profile?.name||"")&&industry)industry.value="";
-  setCompanyLookupStatus("Several NSE companies match. Continue typing the full company name or choose an exact ticker.");
+  setCompanyLookupStatus(matches.length+" listed-company matches found. Continue typing the full name or exact ticker.");
   return;
  }
  if(companyLookupKey(query)!==companyLookupKey(project.profile?.name||"")&&industry)industry.value="";
@@ -507,7 +516,7 @@ function previewCompanyMetadata(value){
   setCompanyLookupStatus("Type at least 3 characters to search the wider company directory.");
   return;
  }
- setCompanyLookupStatus("Searching the wider company directory…");
+ setCompanyLookupStatus("No local listed-company match. Searching the wider company directory…");
  companyLookupTimer=setTimeout(()=>previewWikidataCompany(query,sequence),450);
 }
 function commitWikidataCompany(profile){
@@ -613,9 +622,10 @@ function startCustomCompany(name,externalProfile=null){
  renderCompanyLookupResults([]);
  toast("New blank workspace created for "+project.profile.name+".");
 }
-function handleCompanyNameChange(value){
+async function handleCompanyNameChange(value){
  const name=String(value||"").trim().slice(0,120);
  if(!name){project.profile.name="";syncProfile();rebuild();persist();setCompanyLookupStatus("Enter a company name or NSE symbol.");return;}
+ if(!companyProfileIndex.length)try{await ensureCompanyProfileIndex();renderCompanySuggestions();}catch(error){}
  const matches=findDirectoryMatches(name);
  if(matches.length>1){
   syncProfile();setCompanyLookupStatus("More than one NSE company matches. Choose the full company name or exact ticker from the suggestions; nothing has been changed.");
@@ -674,14 +684,14 @@ function setUniverseSize(size){
  $("#universeNifty100")?.setAttribute("aria-pressed",String(is100));$("#universeNifty200")?.setAttribute("aria-pressed",String(!is100));renderUniverse();
 }
 function selectUniverseCompany(symbol){
- const company=window.ModelForgeUniverse?.companies?.find(x=>x.symbol===symbol);if(!company){toast("Company not found in the bundled NSE directory.");return;}
- const analyst=project.profile?.analyst||"Financial Analyst",p=E.defaultProject();
- p.profile={...p.profile,name:company.name,analyst,industry:company.sector,valuationDate:new Date().toISOString().slice(0,10),currency:"INR",unit:"crores",frequency:"Annual",sharesOutstanding:null,symbol:company.symbol,exchange:"NSE"};
+ const company=allDirectoryCompanies().find(x=>x.symbol.toUpperCase()===String(symbol||"").toUpperCase());if(!company){toast("Company not found in the bundled Indian listed-company directory.");return;}
+ const analyst=project.profile?.analyst||"Financial Analyst",p=E.defaultProject(),exchange=company.exchange||company.market||"NSE",isNifty=Boolean(company.nifty100||company.nifty200);
+ p.profile={...p.profile,name:company.name,analyst,industry:company.sector,valuationDate:new Date().toISOString().slice(0,10),currency:"INR",unit:"crores",frequency:"Annual",sharesOutstanding:null,symbol:company.symbol,exchange};
  p.history=E.blankHistory(["FY"+new Date().getFullYear()]);p.peers=[];p.rawRecords=[];p.mapping={};p.dcf={...p.dcf,riskFreeRate:null,equityRiskPremium:null,beta:null,costOfDebt:null,equityMarketValue:null,debtMarketValue:null,sharesOutstanding:null,perpetualGrowth:null,exitMultiple:null};
- p.security={name:company.name,symbol:company.symbol,sector:company.sector,exchange:"NSE",universeIndex:company.nifty100?"Nifty 100":"Nifty 200",nifty100:company.nifty100,asOf:window.ModelForgeUniverse.asOf};
- p.importMeta={source:"NSE Nifty 100 / Nifty 200 constituent directory",sourceFiles:[],importedAt:new Date().toISOString(),sourceNotes:[window.ModelForgeUniverse.financialDataNote,"Index membership is a universe filter, not a daily market-cap rank. Verify current constituents and identifiers against NSE before use.","No financial values, share price, market capitalisation or shares outstanding have been fabricated or prefilled."]};
+ p.security={name:company.name,symbol:company.symbol,sector:company.sector,exchange,universeIndex:isNifty?(company.nifty100?"Nifty 100":"Nifty 200"):"India listed-company directory",nifty100:Boolean(company.nifty100),asOf:window.ModelForgeUniverse?.asOf||new Date().toISOString().slice(0,10)};
+ p.importMeta={source:company.source||"India listed-company profile directory",sourceFiles:[],importedAt:new Date().toISOString(),sourceNotes:["Company name, listing market and broad sector classification were loaded from the bundled Indian company profile index. Confirm against the company's latest annual report or exchange filings.","No financial values, share price, market capitalisation or shares outstanding have been fabricated or prefilled."]};
  project=normaliseProject(p);syncProfile();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();rebuild();persist();showPage("data");
- setCompanyLookupStatus("Matched "+company.symbol+" · "+company.sector+". Industry, symbol and exchange are auto-filled. Financial statements, share count and live prices are not included.");
+ setCompanyLookupStatus("Matched "+company.symbol+" · "+company.sector+" · "+exchange+". Industry, ticker and exchange are auto-filled.");
  $("#companyUniverseNotice")?.scrollIntoView({behavior:"smooth",block:"center"});toast(company.name+" selected. Upload its verified financials to populate the model.");
 }
 
@@ -1061,7 +1071,7 @@ function bindEvents(){
  $("#resetDemo").addEventListener("click",()=>{if(confirm("Reset all changes and restore the sample project?"))loadSample()});
 }
 function init(){
- bindEvents();renderCompanySuggestions();if(hydrateSavedCompanyMetadata())persist();renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();renderUniverse();
+ bindEvents();renderCompanySuggestions();if(hydrateSavedCompanyMetadata())persist();ensureCompanyProfileIndex().then(()=>{renderCompanySuggestions();renderCompanySuggestionsStatus();}).catch(()=>{setCompanyLookupStatus("Full Indian listed-company index is unavailable. Company lookup will use the NSE 200 directory and Wikidata fallback.");});renderAssumptions();renderWACC();renderTerminal();renderMapping();renderManualEntry();renderUniverse();
  // Build forecast and valuation before showPage() redraws the active overview charts.
  rebuild();
  showPage("overview");
@@ -1073,7 +1083,7 @@ function init(){
  }else{
   setTimeout(drawCharts,0);
  }
- window.ModelForge={getProject:()=>project,getForecast:()=>forecast,getValuation:()=>valuation,selfTest:()=>E.validateHistory(project.history),selectCompany:selectUniverseCompany,renderUniverse,setUniverseSize};
+ window.ModelForge={getProject:()=>project,getForecast:()=>forecast,getValuation:()=>valuation,selfTest:()=>E.validateHistory(project.history),selectCompany:selectUniverseCompany,renderUniverse,setUniverseSize,getCompanyDirectoryCount:()=>allDirectoryCompanies().length};
 }
 init();
 })();
