@@ -65,3 +65,8 @@ NSE Indices states that it retains proprietary rights in index names, compilatio
 ## Company profile lookup
 
 The bundled NSE company directory provides issuer name, symbol and sector metadata for its published snapshot. For names outside that list, the browser can query Wikidata's public Action API (`wbsearchentities` and `wbgetentities`) to retrieve an entity label, industry (`P452`), ticker symbol (`P249`) and stock exchange (`P414`) when those statements exist. The typed company search string and selected Wikidata entity IDs are sent to Wikidata. Uploaded financial statements, workbook contents and model values are not sent by this lookup. Wikidata records are community-maintained, incomplete and should be verified against company filings; missing industry classifications remain blank.
+
+
+## Company profile matching during uploads
+
+The Pages build downloads the CC0-1.0 `India Stock Symbols & Company Metadata` dataset from Hugging Face (`kjhq/India-Stock-Symbols-and-Metadata`) and bundles its company name, ticker, exchange and sector fields as a same-origin CSV asset. The upload flow extracts the issuer name from Screener.in Data Sheet metadata, generic spreadsheet metadata/title rows, or the file name, then matches the name to this local index before using Wikidata as a fallback. The company name is sent to Wikidata only when the local listed-company index has no match; uploaded workbooks and financial figures are not sent. The index is for Indian listed companies, not private or international entities, and its broad sector label may differ from a company's specific industry. Verify classifications against exchange filings or the latest annual report.
